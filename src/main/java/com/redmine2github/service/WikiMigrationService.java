@@ -68,7 +68,23 @@ public class WikiMigrationService {
         MigrationState state = stateMgr.getState();
 
         RedmineClient redmine = new RedmineClient(config);
-        List<RedmineWikiPage> pages = redmine.fetchAllWikiPages();
+        List<RedmineWikiPage> pages;
+        try {
+            pages = redmine.fetchAllWikiPages();
+        } catch (RuntimeException e) {
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("[404]")) {
+                log.info("[Wiki] 프로젝트 '{}' 에 Wiki가 없습니다 — 건너뜁니다.", config.getProjectSlug());
+                System.out.println("  [Wiki] Wiki 없음 — 건너뜁니다.");
+                return;
+            }
+            if (msg != null && msg.contains("[403]")) {
+                log.warn("[Wiki] 프로젝트 '{}' Wiki 접근 권한이 없습니다 — 건너뜁니다.", config.getProjectSlug());
+                System.out.println("  [Wiki] Wiki 접근 권한 없음 — 건너뜁니다.");
+                return;
+            }
+            throw e;
+        }
 
         // 제목 → 페이지 맵 (ancestor 체인 조회용)
         Map<String, RedmineWikiPage> pageMap = pages.stream()
