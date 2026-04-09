@@ -16,7 +16,7 @@
    - [Phase 1: fetch — Redmine → 로컬](#51-phase-1-fetch--redmine--로컬)
    - [Phase 2: upload — 로컬 → GitHub](#52-phase-2-upload--로컬--github)
 6. [전체 프로젝트 일괄 수집 (fetch --all)](#6-전체-프로젝트-일괄-수집-fetch---all)
-7. [통합 실행 (migrate-all)](#7-통합-실행-migrate-all)
+7. [통합 실행 (migrate)](#7-통합-실행-migrate)
 8. [CLI 커맨드 레퍼런스](#8-cli-커맨드-레퍼런스)
 9. [출력 파일 구조](#9-출력-파일-구조)
 10. [변환 규칙 (Textile → GFM)](#10-변환-규칙-textile--gfm)
@@ -391,12 +391,12 @@ output/
 
 ---
 
-## 7. 통합 실행 (migrate-all)
+## 7. 통합 실행 (migrate)
 
 fetch + upload를 한 번에 실행합니다.
 
-> **커맨드 이름**: `migrate-all`  
-> 스크립트(`migrate.sh` / `migrate.bat`)는 내부적으로 `migrate-all` 커맨드를 호출합니다.
+> **커맨드 이름**: `migrate`  
+> 스크립트(`migrate.sh` / `migrate.bat`)는 내부적으로 `migrate` 커맨드를 호출합니다.
 
 ```bash
 # macOS / Linux
@@ -419,8 +419,8 @@ scripts\migrate.bat
 직접 JAR로 실행할 때:
 
 ```bash
-java -jar build/libs/redmine2github.jar migrate-all
-java -jar build/libs/redmine2github.jar migrate-all --only wiki
+java -jar build/libs/redmine2github.jar migrate
+java -jar build/libs/redmine2github.jar migrate --only wiki
 ```
 
 ---
@@ -464,10 +464,10 @@ java -jar redmine2github.jar upload [옵션...]
 | `--retry-failed` | 이전 실패 항목 재처리 |
 | `-h`, `--help` | 도움말 |
 
-### `migrate-all` — 통합 실행
+### `migrate` — 통합 실행
 
 ```
-java -jar redmine2github.jar migrate-all [옵션...]
+java -jar redmine2github.jar migrate [옵션...]
 ```
 
 스크립트: `./scripts/migrate.sh` / `scripts\migrate.bat`

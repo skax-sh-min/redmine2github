@@ -70,4 +70,4 @@ echo " 대상 Redmine: ${REDMINE_URL}/projects/${REDMINE_PROJECT}"
 echo " 대상 GitHub : ${GITHUB_REPO}"
 echo "============================================"
 
-exec java -jar "$JAR" migrate-all "$@"
+exec java -jar "$JAR" migrate "$@"

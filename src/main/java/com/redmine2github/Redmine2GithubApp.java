@@ -41,7 +41,7 @@ import java.nio.charset.StandardCharsets;
         "  redmine2github fetch-all               # fetch --all 별칭",
         "",
         "통합 실행 (단일 프로젝트):",
-        "  redmine2github migrate-all",
+        "  redmine2github migrate",
         "",
         "기타:",
         "  redmine2github generate-mapping   # 사용자 매핑 초안 생성",

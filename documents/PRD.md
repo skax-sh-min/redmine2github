@@ -178,9 +178,9 @@ redmine2github upload --resume
 redmine2github upload --retry-failed
 
 # 전체 파이프라인 (fetch + upload 연속 실행)
-redmine2github migrate-all
-redmine2github migrate-all --only wiki
-redmine2github migrate-all --resume
+redmine2github migrate
+redmine2github migrate --only wiki
+redmine2github migrate --resume
 
 # 사용자 매핑 초안 생성
 redmine2github generate-mapping

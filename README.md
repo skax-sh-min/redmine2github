@@ -125,7 +125,7 @@ scripts\upload.bat
 
 ### Combined Run (fetch + upload)
 
-The scripts call the `migrate-all` CLI command internally.
+The scripts call the `migrate` CLI command internally.
 
 ```bash
 ./scripts/migrate.sh      # macOS / Linux
@@ -158,7 +158,7 @@ scripts\migrate.bat       # Windows
 ├── scripts/                # Run scripts
 │   ├── fetch.sh / fetch.bat          # Single or bulk (--all) fetch
 │   ├── upload.sh / upload.bat
-│   └── migrate.sh / migrate.bat      # Calls migrate-all internally
+│   └── migrate.sh / migrate.bat      # Calls migrate internally
 ├── documents/              # Documentation
 │   ├── UserManual.md
 │   ├── WBS.wiki.md

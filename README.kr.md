@@ -124,7 +124,7 @@ scripts\upload.bat
 
 ### 통합 실행 (fetch + upload)
 
-스크립트 내부에서 `migrate-all` CLI 커맨드를 호출합니다.
+스크립트 내부에서 `migrate` CLI 커맨드를 호출합니다.
 
 ```bash
 ./scripts/migrate.sh      # macOS / Linux
@@ -157,7 +157,7 @@ scripts\migrate.bat       # Windows
 ├── scripts/                # 실행 스크립트
 │   ├── fetch.sh / fetch.bat          # 단일 또는 전체(--all) 수집
 │   ├── upload.sh / upload.bat
-│   └── migrate.sh / migrate.bat      # 내부적으로 migrate-all 호출
+│   └── migrate.sh / migrate.bat      # 내부적으로 migrate 호출
 ├── documents/              # 문서
 │   ├── UserManual.md
 │   ├── WBS.wiki.md

@@ -67,7 +67,7 @@
 | ID | 작업 | 담당 | 상태 | 비고 |
 |----|------|------|------|------|
 | 3.1 | `picocli` 기반 메인 커맨드 구조 설계 | | ✅ | `Redmine2GithubApp.java` |
-| 3.2 | `migrate-all` 전체 실행 커맨드 구현 | | ✅ | `MigrateAllCommand.java` |
+| 3.2 | `migrate` 전체 실행 커맨드 구현 | | ✅ | `MigrateAllCommand.java` |
 | 3.3 | `--only wiki / issues / time-entries` 부분 실행 옵션 | | ✅ | `@Option --only` |
 | 3.4 | `--resume` 중단 후 재개 옵션 | | ✅ | `@Option --resume` |
 | 3.5 | `--retry-failed` 실패 항목 재처리 옵션 | | ✅ | `@Option --retry-failed` |

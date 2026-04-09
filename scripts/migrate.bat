@@ -74,5 +74,5 @@ echo  Redmine : %REDMINE_URL%/projects/%REDMINE_PROJECT%
 echo  GitHub  : %GITHUB_REPO%
 echo ============================================
 
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" migrate-all %*
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" migrate %*
 exit /b %errorlevel%

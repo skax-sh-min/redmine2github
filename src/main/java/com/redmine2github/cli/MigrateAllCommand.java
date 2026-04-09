@@ -16,18 +16,18 @@ import picocli.CommandLine.Option;
  * 단계별 실행이 필요하다면 {@code fetch} / {@code upload} 커맨드를 개별적으로 사용하세요.
  */
 @Command(
-    name = "migrate-all",
+    name = "migrate",
     description = "Phase 1(fetch) + Phase 2(upload)를 순차 실행한다",
     mixinStandardHelpOptions = true,
     footer = {
         "",
         "사용 예시:",
-        "  redmine2github migrate-all                          # 전체 실행",
-        "  redmine2github migrate-all --only wiki              # Wiki만",
-        "  redmine2github migrate-all --only issues            # 일감만",
-        "  redmine2github migrate-all --only time-entries      # 작업 내역만",
-        "  redmine2github migrate-all --resume                 # 중단 후 재개",
-        "  redmine2github migrate-all --retry-failed           # 실패 항목 재처리",
+        "  redmine2github migrate                          # 전체 실행",
+        "  redmine2github migrate --only wiki              # Wiki만",
+        "  redmine2github migrate --only issues            # 일감만",
+        "  redmine2github migrate --only time-entries      # 작업 내역만",
+        "  redmine2github migrate --resume                 # 중단 후 재개",
+        "  redmine2github migrate --retry-failed           # 실패 항목 재처리",
         "",
         "단계별 실행:",
         "  redmine2github fetch    # Phase 1 only: Redmine → 로컬",
