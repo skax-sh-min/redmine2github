@@ -313,7 +313,17 @@ public class RedmineClient {
         }
 
         String url = baseUrl + "/users.json?limit=" + PAGE_SIZE;
-        JsonNode root = get(url);
+        JsonNode root;
+        try {
+            root = get(url);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("[403]")) {
+                log.warn("/users.json 접근 권한 없음 (403) — Redmine 관리자 권한이 필요합니다. " +
+                         "프로젝트 구성원 목록으로 대체합니다.");
+                return fetchMemberUsers();
+            }
+            throw e;
+        }
         ArrayNode rawArray = mapper.createArrayNode();
         List<RedmineUser> list = new ArrayList<>();
         for (JsonNode node : root.path("users")) {
@@ -322,6 +332,48 @@ public class RedmineClient {
         }
 
         if (cache != null) cache.saveArray("users", rawArray);
+        return list;
+    }
+
+    /**
+     * /users.json 접근 불가(403) 시 대체 수단.
+     * GET /projects/{project}/memberships.json 으로 프로젝트 구성원을 수집한다.
+     * 멤버십 응답에는 login이 없으므로 display name을 login 자리에 사용한다.
+     * 생성된 user-mapping.yml에서 직접 Redmine login으로 수정이 필요하다.
+     */
+    private List<RedmineUser> fetchMemberUsers() {
+        if (project == null || project.isBlank()) {
+            log.warn("REDMINE_PROJECT가 설정되지 않아 구성원 목록을 조회할 수 없습니다.");
+            return Collections.emptyList();
+        }
+
+        List<RedmineUser> list = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            String url = baseUrl + "/projects/" + project + "/memberships.json"
+                    + "?limit=" + PAGE_SIZE + "&offset=" + offset;
+            JsonNode root;
+            try {
+                root = get(url);
+            } catch (RuntimeException e) {
+                log.warn("프로젝트 구성원 목록 조회 실패: {}", e.getMessage());
+                break;
+            }
+            JsonNode arr = root.path("memberships");
+            if (arr.isEmpty()) break;
+            for (JsonNode node : arr) {
+                // group 멤버십(user 필드 없음)은 건너뜀
+                JsonNode userNode = node.path("user");
+                if (userNode.isMissingNode()) continue;
+                int id = userNode.path("id").asInt();
+                String name = userNode.path("name").asText("");
+                // login이 없으므로 display name을 임시 key로 사용
+                list.add(new RedmineUser(id, name, "", ""));
+            }
+            offset += arr.size();
+            int total = root.path("total_count").asInt(arr.size());
+            if (offset >= total) break;
+        }
         return list;
     }
 

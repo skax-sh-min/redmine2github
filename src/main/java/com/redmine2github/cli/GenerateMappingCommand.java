@@ -9,8 +9,11 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import com.redmine2github.redmine.model.RedmineUser;
+
 import java.io.File;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Command(
@@ -44,7 +47,29 @@ public class GenerateMappingCommand implements Runnable {
         RedmineClient client = new RedmineClient(config);
 
         log.info("Redmine 사용자 목록 조회 중...");
-        var users = client.fetchUsers();
+        List<RedmineUser> users;
+        try {
+            users = client.fetchUsers();
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (msg.contains("[401]")) {
+                log.error("Redmine 인증 실패 (401). REDMINE_API_KEY 또는 REDMINE_USERNAME/REDMINE_PASSWORD를 확인하세요.");
+            } else if (msg.contains("[403]")) {
+                log.error("Redmine 프로젝트에 접근할 수 없습니다 (403). REDMINE_URL 또는 사용자 권한을 확인하세요.");
+            } else if (msg.contains("[404]")) {
+                log.error("Redmine 프로젝트를 찾을 수 없습니다 (404). REDMINE_PROJECT 또는 REDMINE_URL을 확인하세요.");
+            } else if (msg.contains("호출 실패")) {
+                log.error("Redmine 서버에 연결할 수 없습니다. REDMINE_URL({})을 확인하세요. 원인: {}",
+                        config.getRedmineUrl(), msg);
+            } else {
+                log.error("사용자 목록 조회 중 오류 발생: {}", msg);
+            }
+            return;
+        }
+
+        if (users.isEmpty()) {
+            log.warn("조회된 사용자가 없습니다. REDMINE_PROJECT 설정을 확인하거나 Redmine 관리자에게 문의하세요.");
+        }
 
         Map<String, Object> mapping = new LinkedHashMap<>();
         Map<String, String> userMap = new LinkedHashMap<>();
@@ -56,6 +81,10 @@ public class GenerateMappingCommand implements Runnable {
             mapper.writeValue(new File(output), mapping);
             log.info("user-mapping.yml 초안 생성 완료: {}", output);
             log.info("GitHub 계정을 직접 입력한 뒤 마이그레이션을 실행하세요.");
+            if (!users.isEmpty() && users.stream().allMatch(u -> !u.getFirstname().isEmpty() || u.getLogin().contains(" "))) {
+                log.warn("관리자 권한 없이 생성된 매핑입니다. 키가 Redmine 표시 이름(display name)으로 채워져 있습니다.");
+                log.warn("각 항목의 키를 실제 Redmine login 이름으로 변경한 뒤 사용하세요.");
+            }
         } catch (Exception e) {
             log.error("파일 저장 실패: {}", e.getMessage(), e);
         }
