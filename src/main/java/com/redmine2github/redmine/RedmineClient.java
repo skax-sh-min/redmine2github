@@ -1,0 +1,400 @@
+package com.redmine2github.redmine;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.redmine2github.cache.CacheManager;
+import com.redmine2github.config.AppConfig;
+import com.redmine2github.redmine.model.*;
+import okhttp3.Credentials;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+public class RedmineClient {
+
+    private static final Logger log = LoggerFactory.getLogger(RedmineClient.class);
+    private static final int PAGE_SIZE = 100;
+
+    /** 인증 방식 */
+    private enum AuthMode { API_KEY, BASIC }
+
+    private final OkHttpClient http;
+    private final ObjectMapper mapper;
+    private final String baseUrl;
+    private final String project;
+    private final AuthMode authMode;
+    private final String apiKey;            // API_KEY 방식
+    private final String basicCredential;  // BASIC 방식
+    private final CacheManager cache;      // null이면 캐시 비활성
+    private final long requestDelayMs;     // API 요청 간 지연(ms), 0이면 제한 없음
+
+    public RedmineClient(AppConfig config) {
+        this(config, new CacheManager(config.getCacheDir()));
+    }
+
+    public RedmineClient(AppConfig config, CacheManager cache) {
+        this.http    = new OkHttpClient();
+        this.mapper  = new ObjectMapper();
+        this.baseUrl = config.getRedmineUrl();
+        this.project = config.getRedmineProject();
+        this.cache   = cache;
+        this.requestDelayMs = config.getRequestDelayMs();
+
+        if (!config.getRedmineApiKey().isBlank()) {
+            this.authMode        = AuthMode.API_KEY;
+            this.apiKey          = config.getRedmineApiKey();
+            this.basicCredential = null;
+            log.info("Redmine 인증: API Key 방식");
+        } else if (!config.getRedmineUsername().isBlank()) {
+            this.authMode        = AuthMode.BASIC;
+            this.apiKey          = null;
+            this.basicCredential = Credentials.basic(config.getRedmineUsername(), config.getRedminePassword());
+            log.info("Redmine 인증: ID/PW (Basic Auth) 방식 - 사용자: {}", config.getRedmineUsername());
+        } else {
+            throw new IllegalStateException(
+                "Redmine 인증 정보가 없습니다. REDMINE_API_KEY 또는 REDMINE_USERNAME/REDMINE_PASSWORD를 설정하세요.");
+        }
+    }
+
+    // ── Wiki ──────────────────────────────────────────────────────────────
+
+    public List<RedmineWikiPage> fetchAllWikiPages() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("wiki_pages");
+            if (cached.isPresent()) {
+                List<RedmineWikiPage> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineWikiPage.from(n));
+                return list;
+            }
+        }
+
+        // 1) 목록 API → 제목 수집
+        String indexUrl = baseUrl + "/projects/" + project + "/wiki/index.json";
+        JsonNode root = get(indexUrl);
+
+        // 2) 각 페이지 상세 수집 (text + parent + attachments 포함)
+        ArrayNode detailArray = mapper.createArrayNode();
+        List<RedmineWikiPage> pages = new ArrayList<>();
+        for (JsonNode node : root.path("wiki_pages")) {
+            String title = node.path("title").asText();
+            String detailUrl = baseUrl + "/projects/" + project + "/wiki/" + title + ".json?include=attachments";
+            JsonNode detail = get(detailUrl).path("wiki_page");
+            detailArray.add(detail);
+            pages.add(RedmineWikiPage.from(detail));
+        }
+
+        // 상세 노드 전체를 캐시에 저장 (인덱스 노드만 저장하던 기존 버그 수정)
+        if (cache != null) cache.saveArray("wiki_pages", detailArray);
+        return pages;
+    }
+
+    public RedmineWikiPage fetchWikiPage(String title) {
+        String url = baseUrl + "/projects/" + project + "/wiki/" + title + ".json?include=attachments";
+        JsonNode node = get(url).path("wiki_page");
+        return RedmineWikiPage.from(node);
+    }
+
+    // ── Issues ────────────────────────────────────────────────────────────
+
+    public List<RedmineIssue> fetchAllIssues() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("issues");
+            if (cached.isPresent()) {
+                List<RedmineIssue> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineIssue.from(n));
+                return list;
+            }
+        }
+
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineIssue> issues = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            String url = baseUrl + "/issues.json?project_id=" + project
+                    + "&include=journals,attachments&limit=" + PAGE_SIZE + "&offset=" + offset;
+            JsonNode root = get(url);
+            JsonNode arr  = root.path("issues");
+            if (arr.isEmpty()) break;
+            int pageSize = arr.size();
+            for (JsonNode node : arr) {
+                rawArray.add(node);
+                issues.add(RedmineIssue.from(node));
+            }
+            offset += pageSize;
+            int total = root.path("total_count").asInt();
+            if (offset >= total) break;
+        }
+
+        if (cache != null) cache.saveArray("issues", rawArray);
+        return issues;
+    }
+
+    // ── Time Entries ──────────────────────────────────────────────────────
+
+    public List<RedmineTimeEntry> fetchAllTimeEntries() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("time_entries");
+            if (cached.isPresent()) {
+                List<RedmineTimeEntry> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineTimeEntry.from(n));
+                return list;
+            }
+        }
+
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineTimeEntry> entries = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            String url = baseUrl + "/time_entries.json?project_id=" + project
+                    + "&limit=" + PAGE_SIZE + "&offset=" + offset;
+            JsonNode root;
+            try {
+                root = get(url);
+            } catch (RuntimeException e) {
+                if (e.getMessage() != null && e.getMessage().contains("[403]")) {
+                    log.warn("작업 내역 조회 권한 없음 (403) — time entries 스킵. " +
+                             "Redmine 관리자에게 'Log time' 권한을 요청하거나 .env에서 --only 옵션으로 제외하세요.");
+                    return Collections.emptyList();
+                }
+                throw e;
+            }
+            JsonNode arr  = root.path("time_entries");
+            if (arr.isEmpty()) break;
+            int pageSize = arr.size();
+            for (JsonNode node : arr) {
+                rawArray.add(node);
+                entries.add(RedmineTimeEntry.from(node));
+            }
+            offset += pageSize;
+            int total = root.path("total_count").asInt();
+            if (offset >= total) break;
+        }
+
+        if (cache != null) cache.saveArray("time_entries", rawArray);
+        return entries;
+    }
+
+    // ── Projects ──────────────────────────────────────────────────────────
+
+    /** 접근 가능한 전체 프로젝트 목록을 페이지네이션하여 수집한다. */
+    public List<RedmineProject> fetchAllProjects() {
+        List<RedmineProject> projects = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            String url = baseUrl + "/projects.json?limit=" + PAGE_SIZE + "&offset=" + offset;
+            JsonNode root = get(url);
+            JsonNode arr  = root.path("projects");
+            if (arr.isEmpty()) break;
+            int pageSize = arr.size();
+            for (JsonNode node : arr) projects.add(RedmineProject.from(node));
+            offset += pageSize;
+            int total = root.path("total_count").asInt();
+            if (offset >= total) break;
+        }
+        return projects;
+    }
+
+    // ── Meta ──────────────────────────────────────────────────────────────
+
+    public List<RedmineVersion> fetchVersions() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("versions");
+            if (cached.isPresent()) {
+                List<RedmineVersion> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineVersion.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/projects/" + project + "/versions.json";
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineVersion> list = new ArrayList<>();
+        for (JsonNode node : root.path("versions")) {
+            rawArray.add(node);
+            list.add(RedmineVersion.from(node));
+        }
+
+        if (cache != null) cache.saveArray("versions", rawArray);
+        return list;
+    }
+
+    /** 트래커 목록 수집 — GET /trackers.json */
+    public List<RedmineNamedItem> fetchTrackers() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("trackers");
+            if (cached.isPresent()) {
+                List<RedmineNamedItem> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineNamedItem.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/trackers.json";
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineNamedItem> list = new ArrayList<>();
+        for (JsonNode node : root.path("trackers")) {
+            rawArray.add(node);
+            list.add(RedmineNamedItem.from(node));
+        }
+
+        if (cache != null) cache.saveArray("trackers", rawArray);
+        return list;
+    }
+
+    /** 이슈 카테고리 목록 수집 — GET /projects/{id}/issue_categories.json */
+    public List<RedmineNamedItem> fetchIssueCategories() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("issue_categories");
+            if (cached.isPresent()) {
+                List<RedmineNamedItem> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineNamedItem.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/projects/" + project + "/issue_categories.json";
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineNamedItem> list = new ArrayList<>();
+        for (JsonNode node : root.path("issue_categories")) {
+            rawArray.add(node);
+            list.add(RedmineNamedItem.from(node));
+        }
+
+        if (cache != null) cache.saveArray("issue_categories", rawArray);
+        return list;
+    }
+
+    /** 우선순위 목록 수집 — GET /enumerations/issue_priorities.json */
+    public List<RedmineNamedItem> fetchIssuePriorities() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("issue_priorities");
+            if (cached.isPresent()) {
+                List<RedmineNamedItem> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineNamedItem.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/enumerations/issue_priorities.json";
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineNamedItem> list = new ArrayList<>();
+        for (JsonNode node : root.path("issue_priorities")) {
+            rawArray.add(node);
+            list.add(RedmineNamedItem.from(node));
+        }
+
+        if (cache != null) cache.saveArray("issue_priorities", rawArray);
+        return list;
+    }
+
+    public List<RedmineUser> fetchUsers() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("users");
+            if (cached.isPresent()) {
+                List<RedmineUser> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineUser.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/users.json?limit=" + PAGE_SIZE;
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineUser> list = new ArrayList<>();
+        for (JsonNode node : root.path("users")) {
+            rawArray.add(node);
+            list.add(RedmineUser.from(node));
+        }
+
+        if (cache != null) cache.saveArray("users", rawArray);
+        return list;
+    }
+
+    // ── Attachments ───────────────────────────────────────────────────────
+
+    /**
+     * 첨부파일을 다운로드해 {@code destDir/filename}에 저장한다.
+     * 이미 파일이 존재하면 건너뛴다.
+     *
+     * @param att     첨부파일 메타데이터
+     * @param destDir 저장 대상 디렉터리
+     * @return 저장된 파일 경로
+     */
+    public Path downloadAttachment(RedmineAttachment att, Path destDir) throws IOException {
+        Path dest = destDir.resolve(att.getFilename());
+        if (Files.exists(dest)) {
+            log.debug("첨부파일 스킵 (이미 존재): {}", dest);
+            return dest;
+        }
+
+        Files.createDirectories(destDir);
+        throttle();
+        Request.Builder builder = new Request.Builder()
+                .url(att.getContentUrl());
+
+        if (authMode == AuthMode.API_KEY) {
+            builder.header("X-Redmine-API-Key", apiKey);
+        } else {
+            builder.header("Authorization", basicCredential);
+        }
+
+        try (Response res = http.newCall(builder.build()).execute()) {
+            if (!res.isSuccessful()) {
+                throw new IOException("첨부파일 다운로드 실패 [" + res.code() + "]: " + att.getContentUrl());
+            }
+            Files.write(dest, res.body().bytes());
+            log.info("첨부파일 저장: {}", dest);
+        }
+        return dest;
+    }
+
+    // ── HTTP ──────────────────────────────────────────────────────────────
+
+    /** API 요청 전 설정된 지연 시간만큼 대기한다. */
+    private void throttle() {
+        if (requestDelayMs > 0) {
+            try {
+                Thread.sleep(requestDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private JsonNode get(String url) {
+        throttle();
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .header("Accept", "application/json");
+
+        if (authMode == AuthMode.API_KEY) {
+            builder.header("X-Redmine-API-Key", apiKey);
+        } else {
+            builder.header("Authorization", basicCredential);
+        }
+
+        try (Response response = http.newCall(builder.build()).execute()) {
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("Redmine API 오류 [" + response.code() + "]: " + url);
+            }
+            return mapper.readTree(response.body().string());
+        } catch (IOException e) {
+            throw new RuntimeException("Redmine API 호출 실패: " + url, e);
+        }
+    }
+}

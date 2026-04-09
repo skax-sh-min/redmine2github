@@ -1,0 +1,5 @@
+# Redmine 로그인 → GitHub 계정 매핑
+# 매핑이 없는 사용자는 본문에 이름을 텍스트로 기록
+users:
+  redmine_user1: github-username1
+  redmine_user2: github-username2

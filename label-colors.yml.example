@@ -1,0 +1,16 @@
+# GitHub Label 색상 커스터마이징 (hex, # 제외)
+tracker:
+  Bug: ee0701
+  Feature: 0075ca
+  Support: e4e669
+
+priority:
+  High: b60205
+  Normal: fbca04
+  Low: c2e0c6
+
+status:
+  New: d93f0b
+  In Progress: 0052cc
+  Resolved: 0e8a16
+  Closed: 6f42c1
