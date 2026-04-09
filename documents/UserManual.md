@@ -231,6 +231,17 @@ users:
   admin:       ""           # 빈 값 → Assignee 미설정
 ```
 
+**사용 시점 및 방식**
+
+| 단계 | 사용 목적 |
+|------|-----------|
+| **fetch** | Redmine 이슈를 `{id}.json`으로 변환할 때 `assignee` 및 댓글 작성자를 GitHub 계정명으로 치환하여 저장 |
+| **upload** | 저장된 JSON의 `assignee` 값을 그대로 GitHub Issue에 설정 |
+
+> **주의**: 매핑은 **fetch 단계에서 적용**되어 output JSON에 저장됩니다.  
+> fetch 후 `user-mapping.yml`을 수정해도 이미 생성된 JSON에는 반영되지 않습니다.  
+> 매핑을 바꾸려면 `output/issues/{id}.json`을 직접 수정하거나 fetch를 다시 실행하세요.
+
 > **관리자 권한 없는 환경**: `/users.json` API 접근이 차단(403)되면  
 > 자동으로 `/projects/{project}/memberships.json` 으로 폴백합니다.  
 > 이 경우 키가 Redmine **표시 이름**(display name)으로 채워지므로,  
@@ -255,8 +266,8 @@ cp url-rewrites.yml.example url-rewrites.yml
 ```yaml
 # url-rewrites.yml 예시
 rewrites:
-  - old: "http://10.250.108.139/svn"
-    new: "http://nexcoreshare.skcc.com/svn"
+  - old: "http://old-svn.internal"
+    new: "https://new-git.com"
   - old: "http://old-server.internal"
     new: "https://new-server.example.com"
 ```
@@ -464,6 +475,9 @@ java -jar redmine2github.jar upload [옵션...]
 | `--retry-failed` | 이전 실패 항목 재처리 |
 | `-h`, `--help` | 도움말 |
 
+> **`--all` 미지원**: upload는 `REDMINE_PROJECT` 환경 변수로 지정된 단일 프로젝트만 업로드합니다.  
+> 여러 프로젝트를 업로드하려면 `REDMINE_PROJECT`와 `GITHUB_REPO`를 변경하며 프로젝트별로 실행하세요.
+
 ### `migrate` — 통합 실행
 
 ```
@@ -567,6 +581,11 @@ output/
   "comments": ["> **alice** (2024-01-16)\n\n재현 완료"],
   "closed": false
 }
+```
+
+> **`closed` 필드**: Redmine 상태가 `Closed` 또는 `Resolved`이면 `true`.  
+> upload 시 GitHub Issue를 생성한 직후 자동으로 닫습니다.  
+> 그 외 상태(`New`, `In Progress`, `Feedback` 등)는 `false` → open으로 유지됩니다.
 ```
 
 ### Time Entries CSV 컬럼
