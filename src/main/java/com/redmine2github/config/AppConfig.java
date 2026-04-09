@@ -138,7 +138,13 @@ public class AppConfig {
     public String getGithubToken()    { return githubToken; }
     public String getGithubRepo()     { return githubRepo; }
     public String getOutputDir()      { return outputDir; }
+    /** 원본 캐시 루트 경로 (환경 변수 CACHE_DIR 값). */
     public String getCacheDir()       { return cacheDir; }
+    /**
+     * 프로젝트별 캐시 디렉터리: {@code {cacheDir}/{projectSlug}}.
+     * 프로젝트가 달라져도 캐시가 섞이지 않도록 분리한다.
+     */
+    public String getProjectCacheDir() { return cacheDir + "/" + getProjectSlug(); }
     public String getUploadMethod()         { return uploadMethod; }
     public Map<String, String> getUserMapping() { return userMapping; }
     public int getRequestDelayMs()          { return requestDelayMs; }

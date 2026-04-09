@@ -40,7 +40,7 @@ public class RedmineClient {
     private final long requestDelayMs;     // API 요청 간 지연(ms), 0이면 제한 없음
 
     public RedmineClient(AppConfig config) {
-        this(config, new CacheManager(config.getCacheDir()));
+        this(config, new CacheManager(config.getProjectCacheDir()));
     }
 
     public RedmineClient(AppConfig config, CacheManager cache) {
