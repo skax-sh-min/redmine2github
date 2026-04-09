@@ -13,6 +13,9 @@ import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,7 +91,9 @@ public class RedmineClient {
         List<RedmineWikiPage> pages = new ArrayList<>();
         for (JsonNode node : root.path("wiki_pages")) {
             String title = node.path("title").asText();
-            String detailUrl = baseUrl + "/projects/" + project + "/wiki/" + title + ".json?include=attachments";
+            String encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8)
+                    .replace("+", "%20");  // space → %20 (+ 는 path에서 literal)
+            String detailUrl = baseUrl + "/projects/" + project + "/wiki/" + encodedTitle + ".json?include=attachments";
             JsonNode detail = get(detailUrl).path("wiki_page");
             detailArray.add(detail);
             pages.add(RedmineWikiPage.from(detail));
@@ -100,7 +105,8 @@ public class RedmineClient {
     }
 
     public RedmineWikiPage fetchWikiPage(String title) {
-        String url = baseUrl + "/projects/" + project + "/wiki/" + title + ".json?include=attachments";
+        String encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8).replace("+", "%20");
+        String url = baseUrl + "/projects/" + project + "/wiki/" + encodedTitle + ".json?include=attachments";
         JsonNode node = get(url).path("wiki_page");
         return RedmineWikiPage.from(node);
     }
