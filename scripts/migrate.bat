@@ -2,16 +2,16 @@
 :: ============================================================
 :: migrate.bat -- fetch + upload pipeline (Windows)
 ::
-:: 사용법:
-::   scripts\migrate.bat [옵션...]
+:: Usage:
+::   scripts\migrate.bat [options...]
 ::
-:: 예시:
-::   scripts\migrate.bat                          :: 전체 마이그레이션
-::   scripts\migrate.bat --only wiki              :: Wiki만
-::   scripts\migrate.bat --resume                 :: 이전 중단 지점부터 재개
-::   scripts\migrate.bat --retry-failed           :: 실패 항목 재처리
+:: Examples:
+::   scripts\migrate.bat                          :: full migration
+::   scripts\migrate.bat --only wiki              :: wiki only
+::   scripts\migrate.bat --resume                 :: resume from checkpoint
+::   scripts\migrate.bat --retry-failed           :: retry failed items
 ::
-:: 단계별 실행이 필요하면 fetch.bat / upload.bat를 개별 실행하세요.
+:: For step-by-step control, run fetch.bat and upload.bat separately.
 :: ============================================================
 
 setlocal enabledelayedexpansion

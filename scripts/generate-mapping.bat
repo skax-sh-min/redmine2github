@@ -1,21 +1,14 @@
 @echo off
 :: ============================================================
-:: fetch.bat -- Phase 1: Redmine -> local (Windows)
+:: generate-mapping.bat -- Generate user-mapping.yml (Windows)
 ::
 :: Usage:
-::   scripts\fetch.bat [options...]
+::   scripts\generate-mapping.bat
+::   scripts\generate-mapping.bat --output my-mapping.yml
 ::
-:: Single project:
-::   scripts\fetch.bat                          :: uses REDMINE_PROJECT env var
-::   scripts\fetch.bat --project my-project     :: explicit project
-::   scripts\fetch.bat --only wiki              :: wiki only
-::   scripts\fetch.bat --resume                 :: resume from last checkpoint
-::
-:: All projects:
-::   scripts\fetch.bat --all                    :: fetch all projects
-::   scripts\fetch.bat --all --only wiki        :: all projects, wiki only
-::   scripts\fetch.bat --all --skip foo,bar     :: skip some projects
-::   scripts\fetch-all.bat                      :: alias for the above
+:: Required env vars:
+::   REDMINE_URL (required)
+::   REDMINE_API_KEY or REDMINE_USERNAME + REDMINE_PASSWORD (required)
 :: ============================================================
 
 setlocal enabledelayedexpansion
@@ -58,15 +51,12 @@ if not defined REDMINE_URL (
     echo [ERROR] REDMINE_URL is not set.
     exit /b 1
 )
-:: REDMINE_PROJECT: not required when --all or --project is used (validated by CLI)
 
 :: -- Run --------------------------------------------------------------
 echo ============================================
-echo  [Phase 1] Redmine -^> Local fetch
+echo  Generate user mapping
 echo  Redmine : %REDMINE_URL%
-if defined REDMINE_PROJECTS (echo  Projects: %REDMINE_PROJECTS%) else if defined REDMINE_PROJECT (echo  Project : %REDMINE_PROJECT%)
-if defined OUTPUT_DIR (echo  Output  : %OUTPUT_DIR%) else (echo  Output  : .\output)
 echo ============================================
 
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" fetch %*
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" generate-mapping %*
 exit /b %errorlevel%

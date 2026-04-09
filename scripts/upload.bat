@@ -2,18 +2,18 @@
 :: ============================================================
 :: upload.bat -- Phase 2: local -> GitHub (Windows)
 ::
-:: 사용법:
-::   scripts\upload.bat [옵션...]
+:: Usage:
+::   scripts\upload.bat [options...]
 ::
-:: 예시:
-::   scripts\upload.bat                          :: 전체 업로드
-::   scripts\upload.bat --only wiki              :: Wiki만
-::   scripts\upload.bat --only issues            :: 일감만
-::   scripts\upload.bat --only time-entries      :: 작업 내역만
-::   scripts\upload.bat --resume                 :: 이전 중단 지점부터 재개
-::   scripts\upload.bat --retry-failed           :: 실패 항목 재처리
+:: Examples:
+::   scripts\upload.bat                          :: full upload
+::   scripts\upload.bat --only wiki              :: wiki only
+::   scripts\upload.bat --only issues            :: issues only
+::   scripts\upload.bat --only time-entries      :: time entries only
+::   scripts\upload.bat --resume                 :: resume from checkpoint
+::   scripts\upload.bat --retry-failed           :: retry failed items
 ::
-:: 사전 조건: fetch.bat를 먼저 실행하여 output\ 파일이 준비되어 있어야 합니다.
+:: Prerequisite: run fetch.bat first so output\ files are ready.
 :: ============================================================
 
 setlocal enabledelayedexpansion
