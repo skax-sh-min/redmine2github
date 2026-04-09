@@ -1,0 +1,16 @@
+# URL 치환 규칙 설정
+# 마크다운 본문에서 old → new 로 단순 문자열 치환한다.
+# 주로 레거시 IP 주소를 공식 도메인으로 교체하거나, 이전된 서버 주소를 정리하는 데 사용한다.
+#
+# 사용법:
+#   1. 이 파일을 url-rewrites.yml 로 복사한다.
+#   2. 규칙을 편집한다.
+#   3. fetch 를 실행하면 변환된 마크다운에 규칙이 적용된다.
+#
+# 주의: old 값이 길고 구체적인 것부터 먼저 나열하면 의도치 않은 부분 치환을 피할 수 있다.
+
+rewrites:
+  - old: "http://old-jenkins.internal"
+    new: "https://ci.example.com"
+  - old: "http://old-svn.internal"
+    new: "https://new-git.com"

@@ -1,8 +1,8 @@
 # 사용자 매뉴얼 — Redmine2Github 마이그레이션 도구
 
 > **대상 독자**: Redmine 프로젝트를 GitHub로 이전하는 실무 담당자  
-> **도구 버전**: 1.2.0  
-> **최종 수정**: 2026-04-08
+> **도구 버전**: 1.3.0  
+> **최종 수정**: 2026-04-09
 
 ---
 
@@ -231,11 +231,37 @@ users:
   admin:       ""           # 빈 값 → Assignee 미설정
 ```
 
+> **관리자 권한 없는 환경**: `/users.json` API 접근이 차단(403)되면  
+> 자동으로 `/projects/{project}/memberships.json` 으로 폴백합니다.  
+> 이 경우 키가 Redmine **표시 이름**(display name)으로 채워지므로,  
+> 실제 Redmine **로그인 ID**로 직접 수정한 뒤 마이그레이션을 실행하세요.
+
 ### 4.3 Label 색상 파일 (`label-colors.yml`) — 선택
 
 ```bash
 cp label-colors.yml.example label-colors.yml
 ```
+
+### 4.4 URL 치환 규칙 파일 (`url-rewrites.yml`) — 선택
+
+fetch 시 변환된 마크다운 본문의 특정 URL을 일괄 치환합니다.  
+Redmine 서버에서 사용한 레거시 IP 주소를 공식 도메인으로 교체하는 데 주로 활용합니다.
+
+```bash
+cp url-rewrites.yml.example url-rewrites.yml
+# url-rewrites.yml 편집
+```
+
+```yaml
+# url-rewrites.yml 예시
+rewrites:
+  - old: "http://10.250.108.139/svn"
+    new: "http://nexcoreshare.skcc.com/svn"
+  - old: "http://old-server.internal"
+    new: "https://new-server.example.com"
+```
+
+> `old` 값이 길고 구체적인 것부터 나열하면 의도치 않은 부분 치환을 피할 수 있습니다.
 
 ---
 
@@ -369,12 +395,32 @@ output/
 
 fetch + upload를 한 번에 실행합니다.
 
+> **커맨드 이름**: `migrate-all`  
+> 스크립트(`migrate.sh` / `migrate.bat`)는 내부적으로 `migrate-all` 커맨드를 호출합니다.
+
 ```bash
 # macOS / Linux
 ./scripts/migrate.sh
 
 # Windows
 scripts\migrate.bat
+```
+
+**옵션 조합:**
+
+```bash
+./scripts/migrate.sh --only wiki          # Wiki만
+./scripts/migrate.sh --only issues        # 일감만
+./scripts/migrate.sh --only time-entries  # 작업 내역만
+./scripts/migrate.sh --resume             # 이전 중단 지점부터 재개
+./scripts/migrate.sh --retry-failed       # 실패 항목 재처리
+```
+
+직접 JAR로 실행할 때:
+
+```bash
+java -jar build/libs/redmine2github.jar migrate-all
+java -jar build/libs/redmine2github.jar migrate-all --only wiki
 ```
 
 ---
@@ -420,7 +466,13 @@ java -jar redmine2github.jar upload [옵션...]
 
 ### `migrate-all` — 통합 실행
 
-`fetch` + `upload`와 동일한 옵션을 지원합니다.
+```
+java -jar redmine2github.jar migrate-all [옵션...]
+```
+
+스크립트: `./scripts/migrate.sh` / `scripts\migrate.bat`
+
+`fetch` + `upload`와 동일한 옵션(`--only`, `--resume`, `--retry-failed`)을 지원합니다.
 
 ### `generate-mapping` — 사용자 매핑 초안 생성
 
@@ -473,18 +525,35 @@ REDMINE_PROJECT=my-project ./scripts/upload.sh
 
 ```
 output/
-├── wiki/                          # Wiki .md 파일 (Textile → GFM)
-│   ├── GettingStarted.md
-│   └── ParentPage/                # 하위 페이지는 부모 이름 폴더 아래
-│       └── SubPage.md
-├── attachments/                   # 첨부파일
-├── issues/
-│   ├── _labels.json               # Label 정의 [{name, color, description}]
-│   ├── _milestones.json           # Milestone 정의 [{name, description, dueDate}]
-│   └── {id}.json                  # Issue 변환 데이터
-└── _migration/
-    └── time_entries.csv
+├── {project}/                     # 프로젝트 식별자 폴더
+│   ├── wiki/                      # Wiki .md 파일 (Textile → GFM)
+│   │   ├── GettingStarted.md
+│   │   └── ParentPage/            # 하위 페이지는 부모 이름 폴더 아래
+│   │       └── SubPage.md
+│   ├── attachments/               # 이슈/Wiki에 첨부된 파일
+│   ├── attachments-ext/           # 마크다운 본문 내 Redmine URL에서 다운로드한 외부 파일
+│   ├── issues/
+│   │   ├── _labels.json           # Label 정의 [{name, color, description}]
+│   │   ├── _milestones.json       # Milestone 정의 [{name, description, dueDate}]
+│   │   └── {id}.json             # Issue 변환 데이터
+│   └── _migration/
+│       └── time_entries.csv
 ```
+
+### GitHub 리포지터리 업로드 구조
+
+```
+{project}/
+  wiki/
+    GettingStarted.md
+    ParentPage/
+      SubPage.md
+  attachments/
+  attachments-ext/
+```
+
+> Wiki `.md` 파일 내 첨부파일 상대 경로는 자동 계산됩니다.  
+> 예) `{project}/wiki/Root.md` → `../attachments/file.png`
 
 ### Issue JSON 형식 (`output/issues/{id}.json`)
 
@@ -529,6 +598,8 @@ output/
 | `* 항목` | `- 항목` |
 | `# 항목` | `1. 항목` |
 | `[[PageName]]` | `[PageName](PageName.md)` |
+| `{REDMINE_URL}/projects/{proj}/wiki/{page}` | 프로젝트 간 상대 경로 `.md` 링크 |
+| `{REDMINE_URL}/attachments/{id}/{file}` | `attachments-ext/` 다운로드 후 상대 경로 링크 |
 
 **미지원 문법** (수동 수정 필요):
 
@@ -654,6 +725,12 @@ grep "ERROR\|WARN" migration.log
 **`HTTP 403 Forbidden` (GitHub)**  
 → `GITHUB_TOKEN` 권한(`repo` 또는 `public_repo`) 확인, 토큰 만료 여부 확인
 
+**Redmine 링크가 변환되지 않을 때** (`http://REDMINE_URL/projects/...`가 그대로 남을 때)  
+→ `REDMINE_URL` 환경 변수가 Redmine URL과 정확히 일치하는지 확인
+
+**IP 주소를 도메인으로 교체하려면**  
+→ `url-rewrites.yml` 생성 후 규칙 추가 (`cp url-rewrites.yml.example url-rewrites.yml`)
+
 **`HTTP 422 Unprocessable Entity` (Issue 생성)**  
 → Assignee가 해당 리포지터리 Collaborator가 아님. `user-mapping.yml`에서 해당 항목을 빈 값으로 두거나 Collaborator 추가
 
@@ -681,3 +758,4 @@ grep "ERROR\|WARN" migration.log
 | 사용자 계정 | Redmine 사용자 계정·권한 이전 불가 |
 | Issue 번호 | GitHub Issue 번호 ≠ Redmine 일감 번호. Issue 본문에 원본 Redmine URL 포함 |
 | Redmine 플러그인 | 플러그인 전용 문법 완전 변환 미보장 |
+| 프로젝트 간 wiki 링크 | `{REDMINE_URL}/projects/{proj}/wiki/{page}` 형식만 자동 변환. 다른 형식은 수동 수정 필요 |

@@ -4,6 +4,7 @@ import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.converter.AttachmentPathRewriter;
 import com.redmine2github.converter.LinkRewriter;
+import com.redmine2github.converter.RedmineUrlRewriter;
 import com.redmine2github.converter.TextileConverter;
 import com.redmine2github.github.GitHubFileUploader;
 import com.redmine2github.github.GitHubUploader;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -51,9 +53,11 @@ public class WikiMigrationService {
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
+    private final RedmineUrlRewriter redmineUrlRewriter;
 
     public WikiMigrationService(AppConfig config) {
         this.config = config;
+        this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -160,6 +164,18 @@ public class WikiMigrationService {
                 .collect(Collectors.toList());
         markdown = attachRewriter.rewrite(markdown, attNames, attachBasePath);
 
+        // 외부 Redmine URL / URL 치환 규칙 적용 + attachments-ext 다운로드
+        Path attachExtDir = Path.of(config.getProjectOutputDir(), "attachments-ext");
+        BiConsumer<String, Path> extDownloader = (url, destFile) -> {
+            try {
+                redmine.downloadToFile(url, destFile);
+            } catch (IOException e) {
+                log.warn("외부 첨부파일 다운로드 실패 [{}]: {}", url, e.getMessage());
+            }
+        };
+        markdown = redmineUrlRewriter.rewrite(
+                markdown, config.getProjectSlug(), currentWikiDir, attachExtDir, extDownloader);
+
         Path localPath = Path.of(config.getProjectOutputDir(), "wiki", wikiPath);
         Files.createDirectories(localPath.getParent());
         Files.writeString(localPath, markdown);
@@ -246,6 +262,26 @@ public class WikiMigrationService {
                         });
             } catch (IOException e) {
                 log.error("첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
+            }
+        }
+
+        // 외부 첨부파일(attachments-ext) 업로드
+        Path attachExtDir = Path.of(config.getProjectOutputDir(), "attachments-ext");
+        if (Files.exists(attachExtDir)) {
+            try {
+                Files.walk(attachExtDir)
+                        .filter(Files::isRegularFile)
+                        .forEach(f -> {
+                            String rp = projectSlug + "/attachments-ext/" + attachExtDir.relativize(f).toString().replace('\\', '/');
+                            try {
+                                fileUploader.uploadFile(f, rp, "migrate: " + rp);
+                                log.info("외부 첨부파일 업로드: {}", rp);
+                            } catch (Exception e) {
+                                log.warn("외부 첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
+                            }
+                        });
+            } catch (IOException e) {
+                log.error("외부 첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
             }
         }
 

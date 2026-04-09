@@ -415,6 +415,38 @@ public class RedmineClient {
         return dest;
     }
 
+    /**
+     * 지정 URL의 파일을 {@code destFile} 경로로 다운로드한다.
+     * 이미 파일이 존재하면 건너뛴다.
+     *
+     * @param url      다운로드 URL
+     * @param destFile 저장할 파일 경로 (디렉터리 포함하여 자동 생성)
+     */
+    public void downloadToFile(String url, Path destFile) throws IOException {
+        if (Files.exists(destFile)) {
+            log.debug("외부 파일 스킵 (이미 존재): {}", destFile);
+            return;
+        }
+
+        Files.createDirectories(destFile.getParent());
+        throttle();
+        Request.Builder builder = new Request.Builder().url(url);
+
+        if (authMode == AuthMode.API_KEY) {
+            builder.header("X-Redmine-API-Key", apiKey);
+        } else {
+            builder.header("Authorization", basicCredential);
+        }
+
+        try (Response res = http.newCall(builder.build()).execute()) {
+            if (!res.isSuccessful()) {
+                throw new IOException("외부 파일 다운로드 실패 [" + res.code() + "]: " + url);
+            }
+            Files.write(destFile, res.body().bytes());
+            log.info("외부 파일 저장: {}", destFile);
+        }
+    }
+
     // ── HTTP ──────────────────────────────────────────────────────────────
 
     /** API 요청 전 설정된 지연 시간만큼 대기한다. */

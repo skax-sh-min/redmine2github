@@ -76,6 +76,25 @@ java -jar build/libs/redmine2github.jar generate-mapping
 # → Generates a user-mapping.yml draft; fill in GitHub usernames manually
 ```
 
+> If `/users.json` returns 403 (non-admin), the tool falls back to
+> `/projects/{project}/memberships.json`. In that case keys are filled with
+> **display names** — replace them with actual Redmine **login IDs** before running.
+
+### 3. URL Rewrite Rules (`url-rewrites.yml`) — optional
+
+Replaces legacy URLs (e.g. IP addresses) found in wiki markdown during fetch.
+
+```bash
+cp url-rewrites.yml.example url-rewrites.yml
+# Edit url-rewrites.yml
+```
+
+```yaml
+rewrites:
+  - old: "http://10.250.108.139/svn"
+    new: "http://nexcoreshare.skcc.com/svn"
+```
+
 ## Usage
 
 ### Phase 1: Redmine → Local Fetch
@@ -105,6 +124,8 @@ scripts\upload.bat
 ```
 
 ### Combined Run (fetch + upload)
+
+The scripts call the `migrate-all` CLI command internally.
 
 ```bash
 ./scripts/migrate.sh      # macOS / Linux
@@ -137,7 +158,7 @@ scripts\migrate.bat       # Windows
 ├── scripts/                # Run scripts
 │   ├── fetch.sh / fetch.bat          # Single or bulk (--all) fetch
 │   ├── upload.sh / upload.bat
-│   └── migrate.sh / migrate.bat
+│   └── migrate.sh / migrate.bat      # Calls migrate-all internally
 ├── documents/              # Documentation
 │   ├── UserManual.md
 │   ├── WBS.wiki.md
@@ -146,11 +167,14 @@ scripts\migrate.bat       # Windows
 ├── .env                    # Environment variables (gitignore)
 ├── user-mapping.yml        # User mapping (gitignore)
 ├── label-colors.yml        # Label color config (gitignore)
+├── url-rewrites.yml        # URL rewrite rules (gitignore)
 ├── output/                 # fetch output (gitignore)
-│   ├── wiki/
-│   ├── attachments/
-│   ├── issues/
-│   └── _migration/
+│   └── {project}/
+│       ├── wiki/
+│       ├── attachments/
+│       ├── attachments-ext/  # External files downloaded from Redmine URLs
+│       ├── issues/
+│       └── _migration/
 ├── cache/                  # API cache (gitignore)
 └── migration-state.json    # Progress state (gitignore)
 ```
@@ -186,4 +210,14 @@ Completed items are tracked via `migration-state.json`.
 ./gradlew test
 ```
 
+## Tech Stack
+
+- **Java 21**, Gradle
+- **CLI**: picocli 4.7.6
+- **HTTP**: OkHttp 4.12.0
+- **JSON/YAML**: Jackson 2.17.2
+- **GitHub integration**: kohsuke/github-api 1.321, JGit 6.9.0
+- **Text conversion**: Regex-based Textile → GFM
+- **CSV**: Apache Commons CSV 1.11.0
+- **Logging**: SLF4J + Logback
 

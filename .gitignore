@@ -10,6 +10,7 @@ local
 
 .env
 label-colors.yml
+url-rewrites.yml
 user-mapping.yml
 migration-state.json
 

@@ -74,6 +74,26 @@ java -jar build/libs/redmine2github.jar generate-mapping
 # → user-mapping.yml 초안 생성 후 GitHub 계정명 직접 입력
 ```
 
+> Redmine 관리자 권한이 없어 `/users.json`이 403을 반환하면  
+> `/projects/{project}/memberships.json` 으로 자동 폴백합니다.  
+> 이 경우 키가 **표시 이름(display name)** 으로 채워지므로  
+> 실제 Redmine **로그인 ID** 로 수정한 뒤 마이그레이션을 실행하세요.
+
+### 3. URL 치환 규칙 파일 생성 (`url-rewrites.yml`) — 선택
+
+fetch 시 마크다운 본문의 레거시 URL(IP 주소 등)을 일괄 치환합니다.
+
+```bash
+cp url-rewrites.yml.example url-rewrites.yml
+# url-rewrites.yml 편집
+```
+
+```yaml
+rewrites:
+  - old: "http://10.250.108.139/svn"
+    new: "http://nexcoreshare.skcc.com/svn"
+```
+
 ## 실행
 
 ### Phase 1: Redmine → 로컬 수집
@@ -103,6 +123,8 @@ scripts\upload.bat
 ```
 
 ### 통합 실행 (fetch + upload)
+
+스크립트 내부에서 `migrate-all` CLI 커맨드를 호출합니다.
 
 ```bash
 ./scripts/migrate.sh      # macOS / Linux
@@ -135,7 +157,7 @@ scripts\migrate.bat       # Windows
 ├── scripts/                # 실행 스크립트
 │   ├── fetch.sh / fetch.bat          # 단일 또는 전체(--all) 수집
 │   ├── upload.sh / upload.bat
-│   └── migrate.sh / migrate.bat
+│   └── migrate.sh / migrate.bat      # 내부적으로 migrate-all 호출
 ├── documents/              # 문서
 │   ├── UserManual.md
 │   ├── WBS.wiki.md
@@ -144,11 +166,14 @@ scripts\migrate.bat       # Windows
 ├── .env                    # 환경 변수 (gitignore)
 ├── user-mapping.yml        # 사용자 매핑 (gitignore)
 ├── label-colors.yml        # Label 색상 설정 (gitignore)
+├── url-rewrites.yml        # URL 치환 규칙 (gitignore)
 ├── output/                 # fetch 결과물 (gitignore)
-│   ├── wiki/
-│   ├── attachments/
-│   ├── issues/
-│   └── _migration/
+│   └── {project}/
+│       ├── wiki/
+│       ├── attachments/
+│       ├── attachments-ext/  # 마크다운 본문 내 Redmine URL에서 다운로드한 파일
+│       ├── issues/
+│       └── _migration/
 ├── cache/                  # API 캐시 (gitignore)
 └── migration-state.json    # 진행 상태 (gitignore)
 ```
