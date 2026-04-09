@@ -47,7 +47,7 @@ public class TimeEntryMigrationService {
      */
     public void fetch(boolean resume, boolean retryFailed) {
         ProgressReporter progress = new ProgressReporter("TimeEntries[fetch]");
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         if (state.isTimeEntriesFetched() && !retryFailed) {
@@ -97,7 +97,7 @@ public class TimeEntryMigrationService {
             return;
         }
 
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         if (state.isTimeEntriesDone() && !retryFailed) {

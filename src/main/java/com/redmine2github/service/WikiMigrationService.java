@@ -64,7 +64,7 @@ public class WikiMigrationService {
 
     public void fetch(boolean resume, boolean retryFailed) {
         ProgressReporter progress = new ProgressReporter("Wiki[fetch]");
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         RedmineClient redmine = new RedmineClient(config);
@@ -205,7 +205,7 @@ public class WikiMigrationService {
         }
 
         ProgressReporter progress = new ProgressReporter("Wiki[upload]");
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         GitHubUploader ghUploader = new GitHubUploader(config);

@@ -14,24 +14,25 @@ import java.io.IOException;
 public class MigrationStateManager {
 
     private static final Logger log = LoggerFactory.getLogger(MigrationStateManager.class);
-    private static final String STATE_FILE = "migration-state.json";
+    private static final String STATE_FILENAME = "migration-state.json";
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final MigrationState state;
+    private final File stateFile;
 
-    public MigrationStateManager(boolean resume) {
+    public MigrationStateManager(boolean resume, String cacheDir) {
+        this.stateFile = new File(cacheDir, STATE_FILENAME);
         this.state = resume ? load() : new MigrationState();
     }
 
     private MigrationState load() {
-        File file = new File(STATE_FILE);
-        if (!file.exists()) {
+        if (!stateFile.exists()) {
             log.info("migration-state.json 없음 — 처음부터 시작합니다.");
             return new MigrationState();
         }
         try {
-            log.info("이전 진행 상태를 불러옵니다: {}", STATE_FILE);
-            return mapper.readValue(file, MigrationState.class);
+            log.info("이전 진행 상태를 불러옵니다: {}", stateFile.getPath());
+            return mapper.readValue(stateFile, MigrationState.class);
         } catch (IOException e) {
             log.warn("상태 파일 로드 실패, 새로 시작합니다: {}", e.getMessage());
             return new MigrationState();
@@ -40,7 +41,8 @@ public class MigrationStateManager {
 
     public void save() {
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(STATE_FILE), state);
+            stateFile.getParentFile().mkdirs();
+            mapper.writerWithDefaultPrettyPrinter().writeValue(stateFile, state);
         } catch (IOException e) {
             log.error("상태 파일 저장 실패: {}", e.getMessage(), e);
         }

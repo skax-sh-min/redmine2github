@@ -61,7 +61,7 @@ public class IssueMigrationService {
      */
     public void fetch(boolean resume, boolean retryFailed) {
         ProgressReporter progress = new ProgressReporter("Issues[fetch]");
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         RedmineClient redmine = new RedmineClient(config);
@@ -175,7 +175,7 @@ public class IssueMigrationService {
         }
 
         ProgressReporter progress = new ProgressReporter("Issues[upload]");
-        MigrationStateManager stateMgr = new MigrationStateManager(resume);
+        MigrationStateManager stateMgr = new MigrationStateManager(resume, config.getProjectCacheDir());
         MigrationState state = stateMgr.getState();
 
         ObjectMapper mapper = new ObjectMapper();
