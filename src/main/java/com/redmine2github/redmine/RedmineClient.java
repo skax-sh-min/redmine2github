@@ -18,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -396,8 +398,17 @@ public class RedmineClient {
     public Path downloadAttachment(RedmineAttachment att, Path destDir) throws IOException {
         Path dest = destDir.resolve(att.getFilename());
         if (Files.exists(dest)) {
-            log.debug("첨부파일 스킵 (이미 존재): {}", dest);
-            return dest;
+            if (isSameFile(dest, att)) {
+                log.debug("첨부파일 스킵 (동일 파일): {}", dest);
+                return dest;
+            }
+            // 크기 또는 checksum이 다른 동일명 파일: id 접두사로 분리
+            dest = destDir.resolve(att.getId() + "_" + att.getFilename());
+            if (Files.exists(dest)) {
+                log.debug("첨부파일 스킵 (이미 존재, id접두사): {}", dest);
+                return dest;
+            }
+            log.info("동일 파일명 충돌 — id 접두사 사용: {}", dest.getFileName());
         }
 
         Files.createDirectories(destDir);
@@ -419,6 +430,40 @@ public class RedmineClient {
             log.info("첨부파일 저장: {}", dest);
         }
         return dest;
+    }
+
+    /**
+     * 기존 파일이 첨부파일 메타데이터와 동일한지 확인한다.
+     * 1차: 파일 크기 비교 / 2차: MD5 digest 비교 (Redmine digest가 있는 경우)
+     */
+    private boolean isSameFile(Path existing, RedmineAttachment att) {
+        try {
+            if (att.getFilesize() > 0 && Files.size(existing) != att.getFilesize()) {
+                return false;
+            }
+            if (!att.getDigest().isBlank()) {
+                String existingMd5 = computeMd5(existing);
+                return att.getDigest().equalsIgnoreCase(existingMd5);
+            }
+            return true; // 크기 같고 digest 없음 → 동일로 간주
+        } catch (IOException e) {
+            log.warn("파일 비교 실패 [{}]: {}", existing, e.getMessage());
+            return false;
+        }
+    }
+
+    /** 파일의 MD5 hex digest를 계산한다. */
+    private String computeMd5(Path file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(Files.readAllBytes(file));
+            byte[] hash = md.digest();
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("MD5 알고리즘 없음", e);
+        }
     }
 
     /**

@@ -3,6 +3,7 @@ package com.redmine2github.converter;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -77,5 +78,36 @@ class AttachmentPathRewriterTest {
     void emptyAttachmentListReturnsUnchanged() {
         String input = "![img](img.png)";
         assertEquals(input, rewriter.rewrite(input, List.of(), "../attachments/"));
+    }
+
+    @Test
+    void rewritesWithIdPrefixedStoredName() {
+        // 파일명 충돌로 id 접두사가 붙은 경우 — 원본명으로 참조하되 저장명으로 링크 교체
+        Map<String, String> mapping = Map.of("report.pdf", "123_report.pdf");
+        String result = rewriter.rewrite(
+            "[보고서](report.pdf)",
+            mapping,
+            "../attachments/"
+        );
+        assertEquals("[보고서](../attachments/123_report.pdf)", result);
+    }
+
+    @Test
+    void rewritesImageWithIdPrefixedStoredName() {
+        Map<String, String> mapping = Map.of("diagram.png", "456_diagram.png");
+        String result = rewriter.rewrite(
+            "![다이어그램](diagram.png)",
+            mapping,
+            "../attachments/"
+        );
+        assertEquals("![다이어그램](../attachments/456_diagram.png)", result);
+    }
+
+    @Test
+    void mapBasedRewritePreservesUnmatchedLinks() {
+        Map<String, String> mapping = Map.of("known.pdf", "known.pdf");
+        String input = "[unknown](unknown.pdf) [known](known.pdf)";
+        String result = rewriter.rewrite(input, mapping, "../attachments/");
+        assertEquals("[unknown](unknown.pdf) [known](../attachments/known.pdf)", result);
     }
 }

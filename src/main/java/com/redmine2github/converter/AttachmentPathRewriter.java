@@ -1,6 +1,8 @@
 package com.redmine2github.converter;
 
 import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,24 +29,42 @@ public class AttachmentPathRewriter {
     private static final Pattern TEXT_LINK = Pattern.compile("(?<!!)(\\ ?\\[[^\\]]*]\\()([^)]+)(\\))");
 
     /**
+     * 원본 파일명 목록으로 호출하는 편의 메서드 (파일명 변경 없는 경우).
+     *
      * @param markdown           변환할 마크다운 텍스트
-     * @param attachmentNames    해당 페이지에 첨부된 파일명 목록
-     * @param attachmentBasePath GitHub 리포지터리 내 첨부파일 디렉터리 상대 경로
-     *                           (예: {@code "../attachments/"})
-     * @return 첨부파일 경로가 갱신된 마크다운
+     * @param attachmentNames    첨부 파일명 목록 (원본 == 저장 파일명)
+     * @param attachmentBasePath 첨부파일 디렉터리 상대 경로 (예: {@code "../attachments/"})
      */
     public String rewrite(String markdown, Collection<String> attachmentNames,
                           String attachmentBasePath) {
         if (markdown == null || markdown.isBlank() || attachmentNames.isEmpty()) {
             return markdown == null ? "" : markdown;
         }
-        String result = replaceHrefs(markdown, IMG_LINK,  attachmentNames, attachmentBasePath);
-        result        = replaceHrefs(result,   TEXT_LINK, attachmentNames, attachmentBasePath);
+        Map<String, String> nameMap = attachmentNames.stream()
+                .collect(Collectors.toMap(n -> n, n -> n, (a, b) -> a));
+        return rewrite(markdown, nameMap, attachmentBasePath);
+    }
+
+    /**
+     * 원본 파일명 → 저장 파일명 맵으로 호출하는 메서드.
+     * 동일 프로젝트 내 파일명 충돌 시 저장 파일명이 달라질 수 있다.
+     *
+     * @param markdown           변환할 마크다운 텍스트
+     * @param nameMapping        원본파일명 → 실제저장파일명 (예: "report.pdf" → "123_report.pdf")
+     * @param attachmentBasePath 첨부파일 디렉터리 상대 경로 (예: {@code "../attachments/"})
+     */
+    public String rewrite(String markdown, Map<String, String> nameMapping,
+                          String attachmentBasePath) {
+        if (markdown == null || markdown.isBlank() || nameMapping.isEmpty()) {
+            return markdown == null ? "" : markdown;
+        }
+        String result = replaceHrefs(markdown, IMG_LINK,  nameMapping, attachmentBasePath);
+        result        = replaceHrefs(result,   TEXT_LINK, nameMapping, attachmentBasePath);
         return result;
     }
 
     private String replaceHrefs(String markdown, Pattern pattern,
-                                 Collection<String> attachmentNames, String basePath) {
+                                 Map<String, String> nameMapping, String basePath) {
         Matcher m = pattern.matcher(markdown);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
@@ -64,10 +84,11 @@ public class AttachmentPathRewriter {
                 continue;
             }
 
-            // 첨부파일 목록에 포함된 파일명인 경우만 갱신
-            if (attachmentNames.contains(effectiveHref)) {
+            // 원본 파일명으로 매핑 조회 → 실제 저장 파일명으로 링크 교체
+            String storedName = nameMapping.get(effectiveHref);
+            if (storedName != null) {
                 m.appendReplacement(sb,
-                    Matcher.quoteReplacement(prefix + basePath + effectiveHref + suffix));
+                    Matcher.quoteReplacement(prefix + basePath + storedName + suffix));
             } else {
                 m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
             }

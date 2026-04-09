@@ -144,6 +144,21 @@ public class WikiMigrationService {
     private void fetchPage(RedmineWikiPage page,
                            Map<String, String> titleToWikiPath,
                            RedmineClient redmine) throws IOException {
+        // ① 첨부파일 먼저 다운로드 — 실제 저장 파일명을 확정한다
+        Path attachDir = Path.of(config.getProjectOutputDir(), "attachments");
+        // 원본 파일명 → 실제 저장 파일명 매핑 (이름 충돌 시 id 접두사 붙음)
+        Map<String, String> attNameMapping = new LinkedHashMap<>();
+        for (RedmineAttachment att : page.getAttachments()) {
+            try {
+                Path stored = redmine.downloadAttachment(att, attachDir);
+                attNameMapping.put(att.getFilename(), stored.getFileName().toString());
+            } catch (IOException e) {
+                log.warn("첨부파일 다운로드 실패 [{}]: {}", att.getFilename(), e.getMessage());
+                attNameMapping.put(att.getFilename(), att.getFilename()); // 실패 시 원본명 유지
+            }
+        }
+
+        // ② Markdown 변환 및 링크 재작성
         String markdown = converter.convert(page.getText());
 
         String wikiPath = titleToWikiPath.get(page.getTitle());
@@ -155,16 +170,13 @@ public class WikiMigrationService {
         markdown = linkRewriter.rewrite(markdown, titleToWikiPath, currentWikiDir);
 
         // 첨부파일 경로: wiki 파일에서 ../attachments/ 로 이동할 깊이 계산
-        // wiki/Root/Child.md (슬래시 1개 = depth 1) → ../../attachments/
         long depth = wikiPath.chars().filter(c -> c == '/').count();
         String attachBasePath = "../".repeat((int)(depth + 1)) + "attachments/";
 
-        List<String> attNames = page.getAttachments().stream()
-                .map(RedmineAttachment::getFilename)
-                .collect(Collectors.toList());
-        markdown = attachRewriter.rewrite(markdown, attNames, attachBasePath);
+        // 원본명 → 저장명 매핑으로 링크 재작성 (충돌 파일도 올바른 저장명으로 연결)
+        markdown = attachRewriter.rewrite(markdown, attNameMapping, attachBasePath);
 
-        // 외부 Redmine URL / URL 치환 규칙 적용 + attachments-ext 다운로드
+        // ③ 외부 Redmine URL / URL 치환 규칙 적용 + attachments-ext 다운로드
         Path attachExtDir = Path.of(config.getProjectOutputDir(), "attachments-ext");
         BiConsumer<String, Path> extDownloader = (url, destFile) -> {
             try {
@@ -180,15 +192,6 @@ public class WikiMigrationService {
         Files.createDirectories(localPath.getParent());
         Files.writeString(localPath, markdown);
         log.info("로컬 저장: {}", localPath);
-
-        Path attachDir = Path.of(config.getProjectOutputDir(), "attachments");
-        for (RedmineAttachment att : page.getAttachments()) {
-            try {
-                redmine.downloadAttachment(att, attachDir);
-            } catch (IOException e) {
-                log.warn("첨부파일 다운로드 실패 [{}]: {}", att.getFilename(), e.getMessage());
-            }
-        }
     }
 
     // ── Phase 2: 로컬 → GitHub ────────────────────────────────────────────────
