@@ -205,9 +205,10 @@ public class WikiMigrationService {
 
         progress.start(mdFiles.size());
         int processedSinceRateCheck = 0;
+        String projectSlug = config.getProjectSlug();
 
         for (Path mdFile : mdFiles) {
-            String repoPath = "wiki/" + wikiDir.relativize(mdFile).toString().replace('\\', '/');
+            String repoPath = projectSlug + "/wiki/" + wikiDir.relativize(mdFile).toString().replace('\\', '/');
             if (!retryFailed && state.isWikiPageDone(repoPath)) {
                 progress.itemSkipped(repoPath);
                 continue;
@@ -235,7 +236,7 @@ public class WikiMigrationService {
                 Files.walk(attachDir)
                         .filter(Files::isRegularFile)
                         .forEach(f -> {
-                            String rp = "attachments/" + attachDir.relativize(f).toString().replace('\\', '/');
+                            String rp = projectSlug + "/attachments/" + attachDir.relativize(f).toString().replace('\\', '/');
                             try {
                                 fileUploader.uploadFile(f, rp, "migrate: " + rp);
                                 log.info("첨부파일 업로드: {}", rp);

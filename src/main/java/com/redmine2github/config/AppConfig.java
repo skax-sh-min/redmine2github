@@ -117,9 +117,13 @@ public class AppConfig {
      * Redmine 프로젝트 식별자는 URL-safe 슬러그이므로 그대로 사용하되,
      * 안전을 위해 알파벳·숫자·점·하이픈·언더스코어 외의 문자는 '_'로 치환한다.
      */
+    /** 프로젝트 식별자를 파일시스템·GitHub 경로 안전 슬러그로 반환한다. */
+    public String getProjectSlug() {
+        return redmineProject.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
     public String getProjectOutputDir() {
-        String slug = redmineProject.replaceAll("[^a-zA-Z0-9._-]", "_");
-        return outputDir + "/" + slug;
+        return outputDir + "/" + getProjectSlug();
     }
 
     /**
