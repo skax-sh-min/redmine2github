@@ -130,7 +130,7 @@ public class RedmineClient {
         int offset = 0;
         while (true) {
             String url = baseUrl + "/issues.json?project_id=" + project
-                    + "&include=journals,attachments&limit=" + PAGE_SIZE + "&offset=" + offset;
+                    + "&status_id=*&include=journals,attachments&limit=" + PAGE_SIZE + "&offset=" + offset;
             JsonNode root = get(url);
             JsonNode arr  = root.path("issues");
             if (arr.isEmpty()) break;
