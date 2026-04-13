@@ -73,6 +73,39 @@ class TextileConverterTest {
         assertEquals("", converter.convert("   "));
     }
 
+    // ── Redmine 매크로 ────────────────────────────────────────────────────────
+
+    @Test
+    void macroTocRemoved() {
+        assertEquals("", converter.convert("{{toc}}").trim());
+    }
+
+    @Test
+    void macroTocAlignedRemoved() {
+        assertEquals("", converter.convert("{{>toc}}").trim());
+    }
+
+    @Test
+    void macroChildPagesRemoved() {
+        assertEquals("", converter.convert("{{child_pages}}").trim());
+    }
+
+    @Test
+    void macroChildPagesWithArgsRemoved() {
+        assertEquals("", converter.convert("{{child_pages(depth=2)}}").trim());
+    }
+
+    @Test
+    void macroIncludeConvertsToWikiLink() {
+        // LinkRewriter 가 후속으로 [[...]] 를 처리한다
+        assertEquals("[[Installation Guide]]", converter.convert("{{include(Installation Guide)}}").trim());
+    }
+
+    @Test
+    void macroUnknownRemoved() {
+        assertEquals("", converter.convert("{{unknown_macro(arg)}}").trim());
+    }
+
     // ── 오탐 방지 (regression) ────────────────────────────────────────────────
 
     @Test

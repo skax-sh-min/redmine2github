@@ -91,6 +91,24 @@ class LinkRewriterTest {
         assertEquals("[Missing Page](Missing-Page.md#anchor)", result);
     }
 
+    // ── 대소문자/공백 불일치 폴백 ─────────────────────────────────────────────
+
+    @Test
+    void caseInsensitiveFallback() {
+        // 실제 제목: "Page Name", 링크: [[page name]]
+        Map<String, String> map = Map.of("Page Name", "Page-Name.md");
+        String result = rewriter.rewrite("[[page name]]", map, "proj", "");
+        assertEquals("[page name](Page-Name.md)", result);
+    }
+
+    @Test
+    void whitespaceNormalizationFallback() {
+        // 실제 제목에 이중 공백, 링크에는 단일 공백
+        Map<String, String> map = Map.of("Page  Name", "Page--Name.md");
+        String result = rewriter.rewrite("[[Page Name]]", map, "proj", "");
+        assertEquals("[Page Name](Page--Name.md)", result);
+    }
+
     // ── 크로스 프로젝트 링크 [[OtherProject:PageName]] ────────────────────────
 
     @Test

@@ -39,10 +39,24 @@ public class TextileConverter {
     private static final Pattern ATTACHMENT = Pattern.compile(
             "(?<![(/\"'])\\battachment:([^\\s\\])<>\"]+)");
 
+    // Redmine 매크로
+    private static final Pattern MACRO_TOC = Pattern.compile(
+            "\\{\\{>?toc(?:\\([^)]*\\))?\\}\\}");
+    private static final Pattern MACRO_CHILD_PAGES = Pattern.compile(
+            "\\{\\{child_pages(?:\\([^)]*\\))?\\}\\}");
+    // {{include(PageName)}} or {{include(PageName, extra)}} → [[PageName]]
+    private static final Pattern MACRO_INCLUDE = Pattern.compile(
+            "\\{\\{include\\(([^,)]+)(?:,[^)]*)?\\)\\}\\}");
+    // 나머지 알 수 없는 매크로
+    private static final Pattern MACRO_GENERIC = Pattern.compile(
+            "\\{\\{[^{}]+\\}\\}");
+
     public String convert(String textile) {
         if (textile == null || textile.isBlank()) return "";
 
         String md = textile;
+        // 매크로 먼저 처리 — 이후 패턴과 충돌 방지
+        md = convertMacros(md);
         // 이미지/첨부 먼저 변환 — 파일명이 이후 inline 포매팅(italic, strikethrough 등)에 오염되지 않도록
         md = convertImages(md);
         md = convertAttachmentLinks(md);
@@ -61,6 +75,24 @@ public class TextileConverter {
         md = replace(md, LINK,          "[$1]($2)");
 
         return md;
+    }
+
+    /**
+     * Redmine 매크로를 변환하거나 제거한다.
+     * <ul>
+     *   <li>{@code {{toc}}} / {@code {{>toc}}} → 제거 (GitHub은 헤딩에서 자동 TOC 생성)</li>
+     *   <li>{@code {{child_pages}}} → 제거</li>
+     *   <li>{@code {{include(PageName)}}} → {@code [[PageName]]} (LinkRewriter가 경로 확정)</li>
+     *   <li>나머지 알 수 없는 매크로 → 제거</li>
+     * </ul>
+     */
+    private String convertMacros(String input) {
+        input = MACRO_TOC.matcher(input).replaceAll("");
+        input = MACRO_CHILD_PAGES.matcher(input).replaceAll("");
+        input = MACRO_INCLUDE.matcher(input).replaceAll(m ->
+                Matcher.quoteReplacement("[[" + m.group(1).trim() + "]]"));
+        input = MACRO_GENERIC.matcher(input).replaceAll("");
+        return input;
     }
 
     /** Redmine 이미지 문법을 GFM 이미지로 변환한다. alt 텍스트가 있으면 포함한다. */

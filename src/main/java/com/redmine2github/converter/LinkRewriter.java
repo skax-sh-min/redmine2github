@@ -1,6 +1,8 @@
 package com.redmine2github.converter;
 
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -37,6 +39,9 @@ public class LinkRewriter {
      */
     public String rewrite(String markdown, Map<String, String> titleToWikiPath,
                           String currentProject, String currentWikiDir) {
+        // 대소문자·공백 불일치 폴백용 정규화 맵 (첫 번째 항목 우선)
+        Map<String, String> normalizedMap = buildNormalizedMap(titleToWikiPath);
+
         return WIKI_LINK.matcher(markdown).replaceAll(match -> {
             String raw   = match.group(1).trim();
             String label = match.group(2) != null ? match.group(2).trim() : null;
@@ -59,9 +64,14 @@ public class LinkRewriter {
 
             // 현재 프로젝트 내 링크
             String displayLabel = label != null ? label : pageRef;
+            // 1차: 정확한 제목 일치
             String targetPath = titleToWikiPath.get(pageRef);
+            // 2차: 대소문자·공백 정규화 후 일치
             if (targetPath == null) {
-                // 대상 페이지 정보 없음 — 제목 기반 추정 경로로 폴백
+                targetPath = normalizedMap.get(normalizeKey(pageRef));
+            }
+            // 3차: 제목 기반 추정 경로로 폴백
+            if (targetPath == null) {
                 targetPath = pageRef.replace(" ", "-") + ".md";
             }
             String relPath = computeRelativePath(currentWikiDir, targetPath) + anchor;
@@ -115,5 +125,22 @@ public class LinkRewriter {
         } catch (Exception e) {
             return toPath;
         }
+    }
+
+    /**
+     * 제목→경로 맵의 정규화 키(소문자·연속 공백 단일화·트림) → 경로 역방향 맵을 반환한다.
+     * 동일 정규화 키를 가진 항목이 여럿이면 첫 번째 항목이 우선한다.
+     */
+    private static Map<String, String> buildNormalizedMap(Map<String, String> titleToWikiPath) {
+        Map<String, String> result = new HashMap<>();
+        for (Map.Entry<String, String> e : titleToWikiPath.entrySet()) {
+            result.putIfAbsent(normalizeKey(e.getKey()), e.getValue());
+        }
+        return result;
+    }
+
+    /** 소문자 변환 + 연속 공백을 단일 공백으로 + 트림. */
+    private static String normalizeKey(String title) {
+        return title.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
     }
 }
