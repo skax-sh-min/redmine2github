@@ -183,7 +183,7 @@ public class WikiMigrationService {
         int lastSlash = wikiPath.lastIndexOf('/');
         String currentWikiDir = lastSlash >= 0 ? wikiPath.substring(0, lastSlash) : "";
 
-        markdown = linkRewriter.rewrite(markdown, titleToWikiPath, currentWikiDir);
+        markdown = linkRewriter.rewrite(markdown, titleToWikiPath, config.getProjectSlug(), currentWikiDir);
 
         // 첨부파일 경로: wiki 파일에서 ../attachments/ 로 이동할 깊이 계산
         long depth = wikiPath.chars().filter(c -> c == '/').count();

@@ -10,48 +10,47 @@ class LinkRewriterTest {
 
     private final LinkRewriter rewriter = new LinkRewriter();
 
+    // ── 현재 프로젝트 내 링크 ──────────────────────────────────────────────────
+
     @Test
     void topLevelToTopLevel() {
         Map<String, String> map = Map.of("GettingStarted", "GettingStarted.md");
-        String result = rewriter.rewrite("[[GettingStarted]]", map, "");
+        String result = rewriter.rewrite("[[GettingStarted]]", map, "proj", "");
         assertEquals("[GettingStarted](GettingStarted.md)", result);
     }
 
     @Test
     void linkWithLabel() {
         Map<String, String> map = Map.of("GettingStarted", "GettingStarted.md");
-        String result = rewriter.rewrite("[[GettingStarted|시작하기]]", map, "");
+        String result = rewriter.rewrite("[[GettingStarted|시작하기]]", map, "proj", "");
         assertEquals("[시작하기](GettingStarted.md)", result);
     }
 
     @Test
     void subpageToTopLevel() {
-        // Root/Child.md → Other.md: 상위 디렉터리로 나가야 함
         Map<String, String> map = Map.of("Other", "Other.md");
-        String result = rewriter.rewrite("[[Other]]", map, "Root");
+        String result = rewriter.rewrite("[[Other]]", map, "proj", "Root");
         assertEquals("[Other](../Other.md)", result);
     }
 
     @Test
     void subpageToSibling() {
-        // Root/Child.md → Root/Sibling.md: 같은 디렉터리
         Map<String, String> map = Map.of("Sibling", "Root/Sibling.md");
-        String result = rewriter.rewrite("[[Sibling]]", map, "Root");
+        String result = rewriter.rewrite("[[Sibling]]", map, "proj", "Root");
         assertEquals("[Sibling](Sibling.md)", result);
     }
 
     @Test
     void topLevelToSubpage() {
-        // Home.md → Root/Child.md
         Map<String, String> map = Map.of("Child", "Root/Child.md");
-        String result = rewriter.rewrite("[[Child]]", map, "");
+        String result = rewriter.rewrite("[[Child]]", map, "proj", "");
         assertEquals("[Child](Root/Child.md)", result);
     }
 
     @Test
     void unknownPageFallsBackToSlug() {
         Map<String, String> map = Map.of();
-        String result = rewriter.rewrite("[[Missing Page]]", map, "");
+        String result = rewriter.rewrite("[[Missing Page]]", map, "proj", "");
         assertEquals("[Missing Page](Missing-Page.md)", result);
     }
 
@@ -59,37 +58,75 @@ class LinkRewriterTest {
     void noLinkUnchanged() {
         Map<String, String> map = Map.of();
         String input = "일반 텍스트입니다.";
-        assertEquals(input, rewriter.rewrite(input, map, ""));
+        assertEquals(input, rewriter.rewrite(input, map, "proj", ""));
     }
+
+    // ── 앵커(#section) ────────────────────────────────────────────────────────
 
     @Test
     void anchorOnlyPage() {
-        // [[PageName#section]] — 앵커가 파일 경로에 붙어야 함
         Map<String, String> map = Map.of("PageName", "PageName.md");
-        String result = rewriter.rewrite("[[PageName#section]]", map, "");
+        String result = rewriter.rewrite("[[PageName#section]]", map, "proj", "");
         assertEquals("[PageName](PageName.md#section)", result);
     }
 
     @Test
     void anchorWithLabel() {
-        // [[PageName#section|보러가기]]
         Map<String, String> map = Map.of("PageName", "PageName.md");
-        String result = rewriter.rewrite("[[PageName#section|보러가기]]", map, "");
+        String result = rewriter.rewrite("[[PageName#section|보러가기]]", map, "proj", "");
         assertEquals("[보러가기](PageName.md#section)", result);
     }
 
     @Test
     void anchorFromSubpage() {
-        // Root/Child.md → Other.md#sec
         Map<String, String> map = Map.of("Other", "Other.md");
-        String result = rewriter.rewrite("[[Other#sec]]", map, "Root");
+        String result = rewriter.rewrite("[[Other#sec]]", map, "proj", "Root");
         assertEquals("[Other](../Other.md#sec)", result);
     }
 
     @Test
     void anchorUnknownPageFallback() {
         Map<String, String> map = Map.of();
-        String result = rewriter.rewrite("[[Missing Page#anchor]]", map, "");
+        String result = rewriter.rewrite("[[Missing Page#anchor]]", map, "proj", "");
         assertEquals("[Missing Page](Missing-Page.md#anchor)", result);
+    }
+
+    // ── 크로스 프로젝트 링크 [[OtherProject:PageName]] ────────────────────────
+
+    @Test
+    void crossProject_topLevel() {
+        // proj/wiki/ → other/wiki/Page.md : ../../other/wiki/Page.md
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:Page]]", map, "proj", "");
+        assertEquals("[Page](../../other/wiki/Page.md)", result);
+    }
+
+    @Test
+    void crossProject_withLabel() {
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:Page|다른 프로젝트]]", map, "proj", "");
+        assertEquals("[다른 프로젝트](../../other/wiki/Page.md)", result);
+    }
+
+    @Test
+    void crossProject_withAnchor() {
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:Page#section]]", map, "proj", "");
+        assertEquals("[Page](../../other/wiki/Page.md#section)", result);
+    }
+
+    @Test
+    void crossProject_fromSubpage() {
+        // proj/wiki/Root/ → other/wiki/Page.md : ../../../other/wiki/Page.md
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:Page]]", map, "proj", "Root");
+        assertEquals("[Page](../../../other/wiki/Page.md)", result);
+    }
+
+    @Test
+    void crossProject_spaceInPageName() {
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:My Page]]", map, "proj", "");
+        assertEquals("[My Page](../../other/wiki/My-Page.md)", result);
     }
 }

@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
  *       → 현재 파일 위치 기준 상대 경로 {@code .md} 링크</li>
  *   <li>첨부파일 URL ({@code {baseUrl}/attachments/{id}/{file}})
  *       → 로컬 {@code attachments-ext/} 에 다운로드 후 상대 경로 링크</li>
+ *   <li>Issue URL ({@code {baseUrl}/issues/{id}})
+ *       → GitHub issue 참조 {@code #id} 로 변환</li>
  * </ol>
  *
  * <h3>GitHub 리포지터리 내 경로 기준</h3>
@@ -55,6 +57,14 @@ public class RedmineUrlRewriter {
      * bare attachUrl — 그룹: 1=fullUrl, 2=filename
      */
     private final Pattern bareAttUrl;
+    /**
+     * [label](issueUrl) — 그룹: 1=label, 2=fullUrl, 3=issueId
+     */
+    private final Pattern mdIssueLink;
+    /**
+     * bare issueUrl — 그룹: 1=fullUrl, 2=issueId
+     */
+    private final Pattern bareIssueUrl;
 
     public RedmineUrlRewriter(String redmineBaseUrl, List<String[]> urlRewrites) {
         this.urlRewrites = urlRewrites != null ? urlRewrites : Collections.emptyList();
@@ -64,14 +74,18 @@ public class RedmineUrlRewriter {
         String urlChars = "[^\\s)\"<>]";
 
         // wiki URL 전체 캡처: (1)=fullUrl, (2)=project, (3)=page
-        String fullWikiUrl = "(" + base + "/projects/(" + urlChars + "+)/wiki/(" + urlChars + "+))";
+        String fullWikiUrl  = "(" + base + "/projects/(" + urlChars + "+)/wiki/(" + urlChars + "+))";
         // 첨부파일 URL 전체 캡처: (1)=fullUrl, (2)=filename (id는 스킵)
-        String fullAttUrl  = "(" + base + "/attachments/\\d+/(" + urlChars + "+))";
+        String fullAttUrl   = "(" + base + "/attachments/\\d+/(" + urlChars + "+))";
+        // issue URL 전체 캡처: (1)=fullUrl, (2)=issueId
+        String fullIssueUrl = "(" + base + "/issues/(\\d+))";
 
-        this.mdWikiLink  = Pattern.compile("\\[([^\\]]*)]\\(" + fullWikiUrl + "\\)");
-        this.bareWikiUrl = Pattern.compile(fullWikiUrl);
-        this.mdAttLink   = Pattern.compile("\\[([^\\]]*)]\\(" + fullAttUrl  + "\\)");
-        this.bareAttUrl  = Pattern.compile(fullAttUrl);
+        this.mdWikiLink   = Pattern.compile("\\[([^\\]]*)]\\(" + fullWikiUrl  + "\\)");
+        this.bareWikiUrl  = Pattern.compile(fullWikiUrl);
+        this.mdAttLink    = Pattern.compile("\\[([^\\]]*)]\\(" + fullAttUrl   + "\\)");
+        this.bareAttUrl   = Pattern.compile(fullAttUrl);
+        this.mdIssueLink  = Pattern.compile("\\[([^\\]]*)]\\(" + fullIssueUrl + "\\)");
+        this.bareIssueUrl = Pattern.compile(fullIssueUrl);
     }
 
     /**
@@ -105,6 +119,12 @@ public class RedmineUrlRewriter {
         markdown = replaceAttMd(markdown, currentWikiDir, attachExtDir, downloader);
         // Pass B: 남은 bare URL → [filename](relative) 로 변환
         markdown = replaceAttBare(markdown, currentWikiDir, attachExtDir, downloader);
+
+        // 4. Issue URL 처리 — {baseUrl}/issues/{id} → GitHub issue 참조 #id
+        // Pass A: [label](issueUrl) — label 유지, URL을 #id 로 교체
+        markdown = replaceIssueMd(markdown);
+        // Pass B: 남은 bare URL → #id (GitHub 자동 링크)
+        markdown = replaceIssueBare(markdown);
 
         return markdown;
     }
@@ -182,6 +202,46 @@ public class RedmineUrlRewriter {
             doDownload(downloader, fullUrl, filename, attachExtDir);
             String rel = attachExtRelPath(currentWikiDir, filename);
             m.appendReplacement(sb, Matcher.quoteReplacement("[" + filename + "](" + rel + ")"));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    // ── Issue ─────────────────────────────────────────────────────────────────
+
+    /**
+     * {@code [label]({baseUrl}/issues/123)} → {@code [label](#123)}
+     *
+     * <p>GitHub에서 {@code #123}은 issue 자동 링크로 처리된다.
+     * {@code [label](#123)} 형태는 anchor 링크로 렌더링되나, Redmine 외부 URL 제거가 우선이다.
+     */
+    private String replaceIssueMd(String markdown) {
+        Matcher m = mdIssueLink.matcher(markdown);
+        if (!m.find()) return markdown;
+        m.reset();
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String label   = m.group(1);
+            String issueId = m.group(3);
+            m.appendReplacement(sb, Matcher.quoteReplacement("[" + label + "](#" + issueId + ")"));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /**
+     * bare {@code {baseUrl}/issues/123} → {@code #123}
+     *
+     * <p>GitHub GFM은 {@code #123}을 같은 리포지터리의 issue 링크로 자동 변환한다.
+     */
+    private String replaceIssueBare(String markdown) {
+        Matcher m = bareIssueUrl.matcher(markdown);
+        if (!m.find()) return markdown;
+        m.reset();
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String issueId = m.group(2);
+            m.appendReplacement(sb, Matcher.quoteReplacement("#" + issueId));
         }
         m.appendTail(sb);
         return sb.toString();
