@@ -52,8 +52,10 @@ public class LinkRewriter {
             String anchor  = hashIdx >= 0 ? raw.substring(hashIdx) : "";
 
             // 크로스 프로젝트 여부 확인: [[OtherProject:PageName]]
+            // Redmine 프로젝트 식별자는 소문자·숫자·하이픈·언더스코어만 허용 ([a-z][a-z0-9_-]*)
+            // 이 패턴에 맞지 않으면 콜론 포함 페이지 제목으로 처리 (예: [[API: 개요]])
             int colonIdx = pageRef.indexOf(':');
-            if (colonIdx >= 0) {
+            if (colonIdx >= 0 && pageRef.substring(0, colonIdx).trim().matches("[a-z][a-z0-9_-]*")) {
                 String targetProject = pageRef.substring(0, colonIdx).trim();
                 String pageName      = pageRef.substring(colonIdx + 1).trim();
                 String displayLabel  = label != null ? label : pageName;

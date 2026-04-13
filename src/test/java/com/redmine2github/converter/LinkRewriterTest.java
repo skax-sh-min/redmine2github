@@ -91,6 +91,24 @@ class LinkRewriterTest {
         assertEquals("[Missing Page](Missing-Page.md#anchor)", result);
     }
 
+    // ── 콜론 포함 페이지 제목 (크로스 프로젝트 오탐 방지) ──────────────────────
+
+    @Test
+    void colonInTitleNotCrossProject() {
+        // "API: 개요" → 크로스 프로젝트가 아닌 일반 페이지
+        Map<String, String> map = Map.of("API: 개요", "API:-개요.md");
+        String result = rewriter.rewrite("[[API: 개요]]", map, "proj", "");
+        assertEquals("[API: 개요](API:-개요.md)", result);
+    }
+
+    @Test
+    void colonWithoutSpaceIsCrossProject() {
+        // "other:Page" → 크로스 프로젝트 (prefix에 공백 없음)
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[other:Page]]", map, "proj", "");
+        assertEquals("[Page](../../other/wiki/Page.md)", result);
+    }
+
     // ── 대소문자/공백 불일치 폴백 ─────────────────────────────────────────────
 
     @Test

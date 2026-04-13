@@ -85,7 +85,9 @@ public class RedmineUrlRewriter {
         this.mdAttLink    = Pattern.compile("\\[([^\\]]*)]\\(" + fullAttUrl   + "\\)");
         this.bareAttUrl   = Pattern.compile(fullAttUrl);
         this.mdIssueLink  = Pattern.compile("\\[([^\\]]*)]\\(" + fullIssueUrl + "\\)");
-        this.bareIssueUrl = Pattern.compile(fullIssueUrl);
+        // bareIssueUrl: 뒤에 '/', 단어문자, '#' 이 오면 더 긴 URL의 일부이므로 매칭 제외
+        // e.g. {base}/issues/123/edit → 매칭 안 함, {base}/issues/123#note-5 → 매칭 안 함
+        this.bareIssueUrl = Pattern.compile(fullIssueUrl + "(?![/\\w#])");
     }
 
     /**
