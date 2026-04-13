@@ -56,6 +56,10 @@ class MigrationE2ETest {
         // getProjectOutputDir() = output/myproject
         projectOutputDir = tempDir.resolve("output/myproject");
         when(config.getProjectOutputDir()).thenReturn(projectOutputDir.toString());
+        when(config.getProjectSlug()).thenReturn("myproject");
+        when(config.getProjectCacheDir()).thenReturn(tempDir.resolve("cache/myproject").toString());
+        when(config.getUrlRewrites()).thenReturn(java.util.Collections.emptyList());
+        when(config.getRequestDelayMs()).thenReturn(0);
 
         noCache = mock(CacheManager.class);
         when(noCache.loadArray(anyString())).thenReturn(java.util.Optional.empty());
@@ -64,7 +68,7 @@ class MigrationE2ETest {
     @AfterEach
     void tearDown() throws IOException {
         redmineServer.shutdown();
-        Files.deleteIfExists(Path.of("migration-state.json"));
+        // state 파일은 tempDir(TempDir) 안에 생성되므로 별도 삭제 불필요
     }
 
     // ── Wiki fetch E2E ────────────────────────────────────────────────────────
@@ -337,6 +341,7 @@ class MigrationE2ETest {
 
         assertTrue(Files.exists(projectOutputDir.resolve("wiki/Page1.md")));
         assertTrue(Files.exists(projectOutputDir.resolve("wiki/Page2.md")));
-        assertTrue(Files.exists(Path.of("migration-state.json")), "state 파일이 생성되어야 함");
+        Path stateFile = tempDir.resolve("cache/myproject/migration-state.json");
+        assertTrue(Files.exists(stateFile), "state 파일이 생성되어야 함: " + stateFile);
     }
 }

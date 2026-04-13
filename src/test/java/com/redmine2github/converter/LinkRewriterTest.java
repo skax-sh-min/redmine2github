@@ -61,4 +61,35 @@ class LinkRewriterTest {
         String input = "일반 텍스트입니다.";
         assertEquals(input, rewriter.rewrite(input, map, ""));
     }
+
+    @Test
+    void anchorOnlyPage() {
+        // [[PageName#section]] — 앵커가 파일 경로에 붙어야 함
+        Map<String, String> map = Map.of("PageName", "PageName.md");
+        String result = rewriter.rewrite("[[PageName#section]]", map, "");
+        assertEquals("[PageName](PageName.md#section)", result);
+    }
+
+    @Test
+    void anchorWithLabel() {
+        // [[PageName#section|보러가기]]
+        Map<String, String> map = Map.of("PageName", "PageName.md");
+        String result = rewriter.rewrite("[[PageName#section|보러가기]]", map, "");
+        assertEquals("[보러가기](PageName.md#section)", result);
+    }
+
+    @Test
+    void anchorFromSubpage() {
+        // Root/Child.md → Other.md#sec
+        Map<String, String> map = Map.of("Other", "Other.md");
+        String result = rewriter.rewrite("[[Other#sec]]", map, "Root");
+        assertEquals("[Other](../Other.md#sec)", result);
+    }
+
+    @Test
+    void anchorUnknownPageFallback() {
+        Map<String, String> map = Map.of();
+        String result = rewriter.rewrite("[[Missing Page#anchor]]", map, "");
+        assertEquals("[Missing Page](Missing-Page.md#anchor)", result);
+    }
 }

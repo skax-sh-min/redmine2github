@@ -21,16 +21,22 @@ public class LinkRewriter {
      */
     public String rewrite(String markdown, Map<String, String> titleToWikiPath, String currentWikiDir) {
         return WIKI_LINK.matcher(markdown).replaceAll(match -> {
-            String page  = match.group(1).trim();
-            String label = match.group(2) != null ? match.group(2).trim() : page;
+            String raw = match.group(1).trim();
 
-            String targetPath = titleToWikiPath.get(page);
+            // 앵커(#section) 분리
+            int hashIdx = raw.indexOf('#');
+            String pageName = hashIdx >= 0 ? raw.substring(0, hashIdx).trim() : raw;
+            String anchor   = hashIdx >= 0 ? raw.substring(hashIdx) : "";
+
+            String label = match.group(2) != null ? match.group(2).trim() : pageName;
+
+            String targetPath = titleToWikiPath.get(pageName);
             if (targetPath == null) {
                 // 대상 페이지 정보 없음 — 제목 기반 추정 경로로 폴백
-                targetPath = page.replace(" ", "-") + ".md";
+                targetPath = pageName.replace(" ", "-") + ".md";
             }
 
-            String relPath = computeRelativePath(currentWikiDir, targetPath);
+            String relPath = computeRelativePath(currentWikiDir, targetPath) + anchor;
             return "[" + label + "](" + relPath + ")";
         });
     }

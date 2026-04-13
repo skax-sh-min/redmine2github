@@ -117,10 +117,14 @@ public class RedmineUrlRewriter {
         m.reset();
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
-            String label   = m.group(1);
-            String project = m.group(3);
-            String page    = decode(m.group(4));
-            String rel     = wikiRelPath(currentProject, currentWikiDir, project, page);
+            String label    = m.group(1);
+            String project  = m.group(3);
+            String rawPage  = decode(m.group(4));
+            // 앵커(#section) 분리
+            int hashIdx = rawPage.indexOf('#');
+            String page   = hashIdx >= 0 ? rawPage.substring(0, hashIdx) : rawPage;
+            String anchor = hashIdx >= 0 ? rawPage.substring(hashIdx) : "";
+            String rel = wikiRelPath(currentProject, currentWikiDir, project, page) + anchor;
             m.appendReplacement(sb, Matcher.quoteReplacement("[" + label + "](" + rel + ")"));
         }
         m.appendTail(sb);
@@ -134,8 +138,12 @@ public class RedmineUrlRewriter {
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
             String project = m.group(2);
-            String page    = decode(m.group(3));
-            String rel     = wikiRelPath(currentProject, currentWikiDir, project, page);
+            String rawPage = decode(m.group(3));
+            // 앵커(#section) 분리
+            int hashIdx = rawPage.indexOf('#');
+            String page   = hashIdx >= 0 ? rawPage.substring(0, hashIdx) : rawPage;
+            String anchor = hashIdx >= 0 ? rawPage.substring(hashIdx) : "";
+            String rel = wikiRelPath(currentProject, currentWikiDir, project, page) + anchor;
             m.appendReplacement(sb, Matcher.quoteReplacement("[" + page + "](" + rel + ")"));
         }
         m.appendTail(sb);
