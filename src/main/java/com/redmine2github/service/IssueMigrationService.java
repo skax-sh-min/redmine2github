@@ -123,6 +123,8 @@ public class IssueMigrationService {
 
     private void saveLabelDefs(RedmineClient redmine, Path issuesDir, ObjectMapper mapper) throws IOException {
         List<LocalLabel> labels = new ArrayList<>();
+        labels.add(new LocalLabel("project:" + config.getProjectSlug(), "1d76db",
+                "Redmine 프로젝트: " + config.getProjectSlug()));
         redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel("tracker:" + t.getName(), "ee0701", "")));
         redmine.fetchIssuePriorities().forEach(p -> labels.add(new LocalLabel("priority:" + p.getName(), "fbca04", "")));
         List.of("New", "In Progress", "Resolved", "Closed", "Feedback").forEach(s ->
@@ -311,10 +313,10 @@ public class IssueMigrationService {
         );
         String md = converter.convert(issue.getDescription());
         return String.format("""
-                > **[Redmine #%d]** | 작성: %s | 날짜: %s
+                > **[Redmine #%d]** | 프로젝트: `%s` | 작성: %s | 날짜: %s
 
                 %s
-                """, issue.getId(), author, issue.getCreatedOn(), md);
+                """, issue.getId(), config.getProjectSlug(), author, issue.getCreatedOn(), md);
     }
 
     private String buildCommentBody(RedmineJournal journal, Map<String, String> userMap) {
@@ -325,6 +327,7 @@ public class IssueMigrationService {
 
     private List<String> buildLabels(RedmineIssue issue) {
         List<String> labels = new ArrayList<>();
+        labels.add("project:" + config.getProjectSlug());
         labels.add("tracker:" + issue.getTracker());
         labels.add("priority:" + issue.getPriority());
         labels.add("status:" + issue.getStatus());
