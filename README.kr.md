@@ -90,8 +90,8 @@ cp url-rewrites.yml.example url-rewrites.yml
 
 ```yaml
 rewrites:
-  - old: "http://10.250.108.139/svn"
-    new: "http://nexcoreshare.skcc.com/svn"
+  - old: "http://{IP}/svn"
+    new: "http://{domain}/svn"
 ```
 
 ## 실행

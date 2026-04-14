@@ -298,10 +298,12 @@ public class RedmineUrlRewriter {
     private void doDownload(BiConsumer<String, Path> downloader, String url,
                              String filename, Path attachExtDir) {
         if (downloader == null || attachExtDir == null) return;
+        Path destFile = attachExtDir.resolve(filename);
         try {
-            downloader.accept(url, attachExtDir.resolve(filename));
+            downloader.accept(url, destFile);
         } catch (Exception e) {
-            log.warn("외부 첨부파일 다운로드 실패 [{}]: {}", filename, e.getMessage());
+            log.warn("외부 첨부파일 다운로드 실패 [file={}, url={}, dest={}]: {}",
+                    filename, url, destFile, e.getMessage(), e);
         }
     }
 

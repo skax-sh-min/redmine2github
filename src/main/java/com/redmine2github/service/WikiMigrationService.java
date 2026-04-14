@@ -169,7 +169,8 @@ public class WikiMigrationService {
                 Path stored = redmine.downloadAttachment(att, attachDir);
                 attNameMapping.put(att.getFilename(), stored.getFileName().toString());
             } catch (IOException e) {
-                log.warn("첨부파일 다운로드 실패 [{}]: {}", att.getFilename(), e.getMessage());
+                log.warn("첨부파일 다운로드 실패 [name={}, url={}]: {}",
+                        att.getFilename(), att.getContentUrl(), e.getMessage(), e);
                 attNameMapping.put(att.getFilename(), att.getFilename()); // 실패 시 원본명 유지
             }
         }
@@ -198,7 +199,8 @@ public class WikiMigrationService {
             try {
                 redmine.downloadToFile(url, destFile);
             } catch (IOException e) {
-                log.warn("외부 첨부파일 다운로드 실패 [{}]: {}", url, e.getMessage());
+                log.warn("외부 첨부파일 다운로드 실패 [url={}, dest={}]: {}",
+                        url, destFile, e.getMessage(), e);
             }
         };
         markdown = redmineUrlRewriter.rewrite(
