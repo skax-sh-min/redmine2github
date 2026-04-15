@@ -149,6 +149,29 @@ public class RedmineClient {
         return issues;
     }
 
+    /**
+     * 단건 이슈를 상세 조회한다 — journals.details(필드 변경 이력) 포함.
+     *
+     * <p>목록 API({@code /issues.json})는 {@code journals.details}를 반환하지 않는다.
+     * 단건 API({@code /issues/{id}.json})만 전체 이력 데이터를 포함하므로,
+     * 이력 정보가 필요한 fetch 단계에서 이슈별로 별도 호출한다.
+     *
+     * <p>결과는 {@code cache/issue_{id}.json}에 캐싱되어 재실행 시 API 호출을 생략한다.
+     */
+    public RedmineIssue fetchIssueDetail(int id) {
+        String cacheKey = "issue_" + id;
+        if (cache != null) {
+            Optional<JsonNode> cached = cache.loadNode(cacheKey);
+            if (cached.isPresent()) return RedmineIssue.from(cached.get());
+        }
+
+        String url = baseUrl + "/issues/" + id + ".json?include=journals,attachments";
+        JsonNode issueNode = get(url).path("issue");
+
+        if (cache != null) cache.saveNode(cacheKey, issueNode);
+        return RedmineIssue.from(issueNode);
+    }
+
     // ── Time Entries ──────────────────────────────────────────────────────
 
     public List<RedmineTimeEntry> fetchAllTimeEntries() {

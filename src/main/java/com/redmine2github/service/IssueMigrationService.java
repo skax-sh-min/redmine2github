@@ -122,15 +122,18 @@ public class IssueMigrationService {
         }
 
         // Issues 수집 및 변환
-        List<RedmineIssue> issues = redmine.fetchAllIssues();
-        progress.start(issues.size());
+        // fetchAllIssues(): 목록 API로 이슈 ID 목록 확보 (journals.details 미포함)
+        // fetchIssueDetail(): 단건 API로 재조회하여 journals.details(이력) 포함한 전체 데이터 취득
+        List<RedmineIssue> issueList = redmine.fetchAllIssues();
+        progress.start(issueList.size());
 
-        for (RedmineIssue issue : issues) {
-            if (!retryFailed && state.isIssueFetched(issue.getId())) {
-                progress.itemSkipped("#" + issue.getId());
+        for (RedmineIssue basicIssue : issueList) {
+            if (!retryFailed && state.isIssueFetched(basicIssue.getId())) {
+                progress.itemSkipped("#" + basicIssue.getId());
                 continue;
             }
             try {
+                RedmineIssue issue = redmine.fetchIssueDetail(basicIssue.getId());
                 LocalIssue local = convertIssue(issue, redmine);
                 mapper.writeValue(issuesJsonDir.resolve(issue.getId() + ".json").toFile(), local);
                 if (issuesMdDir != null) {
@@ -140,8 +143,8 @@ public class IssueMigrationService {
                 stateMgr.save();
                 progress.itemDone("#" + issue.getId() + " " + issue.getSubject());
             } catch (Exception e) {
-                log.error("Issue 수집 실패 [#{}]: {}", issue.getId(), e.getMessage(), e);
-                progress.itemFailed("#" + issue.getId(), e.getMessage());
+                log.error("Issue 수집 실패 [#{}]: {}", basicIssue.getId(), e.getMessage(), e);
+                progress.itemFailed("#" + basicIssue.getId(), e.getMessage());
             }
         }
 
@@ -265,7 +268,7 @@ public class IssueMigrationService {
 
         List<String> comments = issue.getJournals().stream()
                 .filter(RedmineJournal::hasContent)
-                .map(j -> buildCommentBody(j, userMap))
+                .map(j -> buildCommentBody(j, userMap, attNameMapping))
                 .collect(Collectors.toList());
 
         return new LocalIssue(
@@ -562,7 +565,8 @@ public class IssueMigrationService {
         return nameMapping;
     }
 
-    private String buildCommentBody(RedmineJournal journal, Map<String, String> userMap) {
+    private String buildCommentBody(RedmineJournal journal, Map<String, String> userMap,
+                                     Map<String, String> attNameMapping) {
         String author = userMap.getOrDefault(journal.getAuthorLogin(), journal.getAuthorLogin());
         StringBuilder sb = new StringBuilder();
 
@@ -573,15 +577,17 @@ public class IssueMigrationService {
         if (!journal.getDetails().isEmpty()) {
             sb.append("\n>");
             for (var d : journal.getDetails()) {
-                sb.append("\n> - **").append(mapFieldName(d.getName())).append("**");
                 if ("attachment".equals(d.getProperty())) {
-                    // 첨부파일 추가/삭제
-                    if (d.getOldValue() == null) {
-                        sb.append(": 첨부 → `").append(d.getNewValue()).append("`");
-                    } else {
-                        sb.append(": `").append(d.getOldValue()).append("` 삭제");
+                    // 첨부파일 추가/삭제 — 파일명 링크로 표시
+                    if (d.getOldValue() == null && d.getNewValue() != null) {
+                        String storedName = attNameMapping.getOrDefault(d.getNewValue(), d.getNewValue());
+                        sb.append("\n> - 첨부파일 추가: [").append(d.getNewValue())
+                          .append("](../attachments-issue/").append(storedName).append(")");
+                    } else if (d.getNewValue() == null) {
+                        sb.append("\n> - 첨부파일 삭제: `").append(d.getOldValue()).append("`");
                     }
                 } else {
+                    sb.append("\n> - **").append(mapFieldName(d.getName())).append("**");
                     if (d.getOldValue() != null) sb.append(": `").append(d.getOldValue()).append("` → ");
                     else sb.append(": → ");
                     if (d.getNewValue() != null) sb.append("`").append(d.getNewValue()).append("`");
