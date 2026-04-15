@@ -3,9 +3,13 @@ package com.redmine2github.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.converter.AttachmentPathRewriter;
+import com.redmine2github.converter.LinkRewriter;
+import com.redmine2github.converter.RedmineUrlRewriter;
 import com.redmine2github.converter.TextileConverter;
 import com.redmine2github.github.GitHubUploader;
 import com.redmine2github.redmine.RedmineClient;
+import com.redmine2github.redmine.model.RedmineAttachment;
 import com.redmine2github.redmine.model.RedmineIssue;
 import com.redmine2github.redmine.model.RedmineJournal;
 import com.redmine2github.service.model.LocalIssue;
@@ -21,9 +25,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -47,10 +54,14 @@ public class IssueMigrationService {
     private static final Logger log = LoggerFactory.getLogger(IssueMigrationService.class);
 
     private final AppConfig config;
-    private final TextileConverter converter = new TextileConverter();
+    private final TextileConverter converter            = new TextileConverter();
+    private final LinkRewriter linkRewriter             = new LinkRewriter();
+    private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
+    private final RedmineUrlRewriter redmineUrlRewriter;
 
     public IssueMigrationService(AppConfig config) {
         this.config = config;
+        this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -107,7 +118,7 @@ public class IssueMigrationService {
                 continue;
             }
             try {
-                LocalIssue local = convertIssue(issue);
+                LocalIssue local = convertIssue(issue, redmine);
                 mapper.writeValue(issuesDir.resolve(issue.getId() + ".json").toFile(), local);
                 state.markIssueFetched(issue.getId());
                 stateMgr.save();
@@ -142,10 +153,13 @@ public class IssueMigrationService {
         log.info("Milestone 정의 저장: {}개", milestones.size());
     }
 
-    private LocalIssue convertIssue(RedmineIssue issue) {
+    private LocalIssue convertIssue(RedmineIssue issue, RedmineClient redmine) {
         Map<String, String> userMap = config.getUserMapping();
 
-        String body     = buildIssueBody(issue, userMap);
+        Path attachIssueDir = Path.of(config.getProjectOutputDir(), "attachments-issue");
+        Map<String, String> attNameMapping = downloadAttachments(issue.getAttachments(), redmine, attachIssueDir);
+
+        String body     = buildIssueBody(issue, userMap, attNameMapping, redmine, attachIssueDir);
         List<String> labels  = buildLabels(issue);
         String assignee = issue.getAssigneeLogin() != null
                         ? userMap.getOrDefault(issue.getAssigneeLogin(), null)
@@ -306,12 +320,34 @@ public class IssueMigrationService {
 
     // ── 변환 헬퍼 ─────────────────────────────────────────────────────────────
 
-    private String buildIssueBody(RedmineIssue issue, Map<String, String> userMap) {
+    private String buildIssueBody(RedmineIssue issue, Map<String, String> userMap,
+                                  Map<String, String> attNameMapping, RedmineClient redmine,
+                                  Path attachIssueDir) {
         String author = userMap.getOrDefault(
                 issue.getAssigneeLogin(),
                 issue.getAssigneeLogin() != null ? issue.getAssigneeLogin() : "unknown"
         );
+
+        // Textile → GFM
         String md = converter.convert(issue.getDescription());
+
+        // [[WikiPage]] 링크 변환 (wiki 페이지 맵 없이 제목 기반 경로 추정)
+        md = linkRewriter.rewrite(md, Collections.emptyMap(), config.getProjectSlug(), "");
+
+        // 첨부파일 경로 보정: attachment:file / 파일명 단독 참조 → ../attachments-issue/
+        md = attachRewriter.rewrite(md, attNameMapping, "../attachments-issue/");
+
+        // Redmine 절대 URL 변환: {base}/issues/123 → #123, wiki URL → 상대 경로
+        // 본문 내 외부 첨부파일 URL도 attachments-issue/ 로 다운로드
+        BiConsumer<String, Path> extDownloader = (url, destFile) -> {
+            try {
+                redmine.downloadToFile(url, destFile);
+            } catch (IOException e) {
+                log.warn("Issue 외부 첨부파일 다운로드 실패 [url={}, dest={}]: {}", url, destFile, e.getMessage());
+            }
+        };
+        md = redmineUrlRewriter.rewrite(md, config.getProjectSlug(), "", attachIssueDir, extDownloader);
+
         return String.format("""
                 > **[Redmine #%d]** | 프로젝트: `%s` | 작성: %s | 날짜: %s
 
@@ -319,9 +355,41 @@ public class IssueMigrationService {
                 """, issue.getId(), config.getProjectSlug(), author, issue.getCreatedOn(), md);
     }
 
+    private Map<String, String> downloadAttachments(List<RedmineAttachment> attachments,
+                                                     RedmineClient redmine, Path destDir) {
+        Map<String, String> nameMapping = new LinkedHashMap<>();
+        if (attachments.isEmpty()) return nameMapping;
+        try {
+            Files.createDirectories(destDir);
+        } catch (IOException e) {
+            log.warn("attachments-issue 디렉터리 생성 실패: {}", e.getMessage());
+            return nameMapping;
+        }
+        for (RedmineAttachment att : attachments) {
+            try {
+                Path stored = redmine.downloadAttachment(att, destDir);
+                nameMapping.put(att.getFilename(), stored.getFileName().toString());
+            } catch (IOException e) {
+                log.warn("Issue 첨부파일 다운로드 실패 [name={}, url={}]: {}",
+                        att.getFilename(), att.getContentUrl(), e.getMessage());
+                nameMapping.put(att.getFilename(), att.getFilename());
+            }
+        }
+        return nameMapping;
+    }
+
     private String buildCommentBody(RedmineJournal journal, Map<String, String> userMap) {
         String author = userMap.getOrDefault(journal.getAuthorLogin(), journal.getAuthorLogin());
+
+        // Textile → GFM
         String md = converter.convert(journal.getNotes());
+
+        // [[WikiPage]] 링크 변환
+        md = linkRewriter.rewrite(md, Collections.emptyMap(), config.getProjectSlug(), "");
+
+        // Redmine 절대 URL 변환 (저널에는 첨부파일 데이터 없으므로 AttachmentPathRewriter 스킵)
+        md = redmineUrlRewriter.rewrite(md, config.getProjectSlug(), "", null, null);
+
         return String.format("> **%s** (%s)\n\n%s", author, journal.getCreatedOn(), md);
     }
 
