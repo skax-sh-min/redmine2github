@@ -192,26 +192,27 @@ public class IssueMigrationService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(config.getProjectSlug()).append(" — Issues\n\n");
-        sb.append("| ID | 제목 | 라벨 | 생성자 | 날짜 |\n");
-        sb.append("|---|---|---|---|---|\n");
+        sb.append("| ID | 제목 | status | tracker | category | 생성자 | 날짜 |\n");
+        sb.append("|---|---|---|---|---|---|---|\n");
 
         for (LocalIssue issue : issues) {
             String idCell = config.isIssueMdFetch()
                     ? "[#" + issue.getRedmineId() + "](issues/" + issue.getRedmineId() + ".md)"
                     : "#" + issue.getRedmineId();
 
-            String labels = issue.getLabels().stream()
-                    .filter(l -> !l.startsWith("project:"))
-                    .collect(Collectors.joining(", "));
+            String status   = extractLabel(issue.getLabels(), "status:");
+            String tracker  = extractLabel(issue.getLabels(), "tracker:");
+            String category = extractLabel(issue.getLabels(), "category:");
 
             String author    = issue.getAuthor()    != null ? issue.getAuthor()    : "";
             String createdOn = issue.getCreatedOn() != null ? issue.getCreatedOn() : "";
-            // 날짜 부분만 (T 이전까지)
             if (createdOn.contains("T")) createdOn = createdOn.substring(0, createdOn.indexOf('T'));
 
             sb.append("| ").append(idCell)
               .append(" | ").append(escapeMdCell(issue.getSubject()))
-              .append(" | ").append(escapeMdCell(labels))
+              .append(" | ").append(escapeMdCell(status))
+              .append(" | ").append(escapeMdCell(tracker))
+              .append(" | ").append(escapeMdCell(category))
               .append(" | ").append(escapeMdCell(author))
               .append(" | ").append(escapeMdCell(createdOn))
               .append(" |\n");
@@ -263,7 +264,7 @@ public class IssueMigrationService {
                         : null;
 
         List<String> comments = issue.getJournals().stream()
-                .filter(j -> !j.getNotes().isBlank())
+                .filter(RedmineJournal::hasContent)
                 .map(j -> buildCommentBody(j, userMap))
                 .collect(Collectors.toList());
 
@@ -522,6 +523,15 @@ public class IssueMigrationService {
         };
         md = redmineUrlRewriter.rewrite(md, config.getProjectSlug(), "", attachIssueDir, extDownloader);
 
+        // 첨부파일 목록 섹션 (다운로드된 파일 전체)
+        if (!attNameMapping.isEmpty()) {
+            StringBuilder attSection = new StringBuilder("\n\n## 첨부파일\n\n");
+            attNameMapping.forEach((origName, storedName) ->
+                attSection.append("- [").append(origName).append("](../attachments-issue/")
+                          .append(storedName).append(")\n"));
+            md = md + attSection;
+        }
+
         return String.format("""
                 > **[Redmine #%d]** | 프로젝트: `%s` | 작성: %s | 날짜: %s
 
@@ -554,17 +564,59 @@ public class IssueMigrationService {
 
     private String buildCommentBody(RedmineJournal journal, Map<String, String> userMap) {
         String author = userMap.getOrDefault(journal.getAuthorLogin(), journal.getAuthorLogin());
+        StringBuilder sb = new StringBuilder();
 
-        // Textile → GFM
-        String md = converter.convert(journal.getNotes());
+        // 헤더
+        sb.append("> **").append(author).append("** (").append(journal.getCreatedOn()).append(")");
 
-        // [[WikiPage]] 링크 변환
-        md = linkRewriter.rewrite(md, Collections.emptyMap(), config.getProjectSlug(), "");
+        // 필드 변경 이력
+        if (!journal.getDetails().isEmpty()) {
+            sb.append("\n>");
+            for (var d : journal.getDetails()) {
+                sb.append("\n> - **").append(mapFieldName(d.getName())).append("**");
+                if ("attachment".equals(d.getProperty())) {
+                    // 첨부파일 추가/삭제
+                    if (d.getOldValue() == null) {
+                        sb.append(": 첨부 → `").append(d.getNewValue()).append("`");
+                    } else {
+                        sb.append(": `").append(d.getOldValue()).append("` 삭제");
+                    }
+                } else {
+                    if (d.getOldValue() != null) sb.append(": `").append(d.getOldValue()).append("` → ");
+                    else sb.append(": → ");
+                    if (d.getNewValue() != null) sb.append("`").append(d.getNewValue()).append("`");
+                    else sb.append("(삭제)");
+                }
+            }
+        }
 
-        // Redmine 절대 URL 변환 (저널에는 첨부파일 데이터 없으므로 AttachmentPathRewriter 스킵)
-        md = redmineUrlRewriter.rewrite(md, config.getProjectSlug(), "", null, null);
+        // 노트 본문
+        if (!journal.getNotes().isBlank()) {
+            String md = converter.convert(journal.getNotes());
+            md = linkRewriter.rewrite(md, Collections.emptyMap(), config.getProjectSlug(), "");
+            md = redmineUrlRewriter.rewrite(md, config.getProjectSlug(), "", null, null);
+            sb.append("\n\n").append(md);
+        }
 
-        return String.format("> **%s** (%s)\n\n%s", author, journal.getCreatedOn(), md);
+        return sb.toString();
+    }
+
+    private static String mapFieldName(String name) {
+        return switch (name) {
+            case "status_id"         -> "상태";
+            case "assigned_to_id"    -> "담당자";
+            case "priority_id"       -> "우선순위";
+            case "fixed_version_id"  -> "버전";
+            case "tracker_id"        -> "트래커";
+            case "category_id"       -> "분류";
+            case "subject"           -> "제목";
+            case "description"       -> "설명";
+            case "done_ratio"        -> "진행률";
+            case "due_date"          -> "마감일";
+            case "start_date"        -> "시작일";
+            case "estimated_hours"   -> "예상시간";
+            default                  -> name;
+        };
     }
 
     private List<String> buildLabels(RedmineIssue issue) {
@@ -579,6 +631,15 @@ public class IssueMigrationService {
 
     private boolean isClosed(String status) {
         return "Closed".equalsIgnoreCase(status) || "Resolved".equalsIgnoreCase(status);
+    }
+
+    /** labels 목록에서 prefix에 해당하는 값만 추출한다. (예: "status:신규" → "신규") */
+    private static String extractLabel(List<String> labels, String prefix) {
+        return labels.stream()
+                .filter(l -> l.startsWith(prefix))
+                .map(l -> l.substring(prefix.length()))
+                .findFirst()
+                .orElse("");
     }
 
     /** 마크다운 제목에서 특수문자를 이스케이프한다. */
