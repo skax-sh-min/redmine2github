@@ -10,11 +10,13 @@ Safely migrates Wiki, Issues, and Time Entries in **2 phases**.
 | Redmine | GitHub |
 |---------|--------|
 | Wiki pages (Textile) | `.md` files (GFM) — repository push |
-| Issues | GitHub Issues (Labels + Milestones + Assignees) |
-| Issue comments / history | Issue Comments |
+| Issues | `issues/{id}.md` + `issues.md` index — repository push (default) |
+| Issues | GitHub Issues with Labels + Milestones + Assignees (`REDMINE_ISSUE_MD_FETCH=false`) |
+| Issue comments / history | Comments section in issue MD (notes + field change history) |
 | Versions | Milestones |
 | Trackers / Priorities / Statuses / Categories | Labels |
-| Attachments | Repository push |
+| Wiki attachments | Repository push (`attachments/`) |
+| Issue attachments | Repository push (`attachments-issue/`) |
 | Time Entries | `time_entries.csv` — repository push |
 
 ## 2-Phase Workflow
@@ -60,6 +62,7 @@ Phase 2: upload         →  GitHub
 | `CACHE_DIR` | fetch | — | Cache path (default: `./cache`) |
 | `GITHUB_UPLOAD_METHOD` | upload | — | `API` or `JGIT` (default: `API`) |
 | `REQUEST_DELAY_MS` | both | — | Delay between API requests in ms (default: `10`) |
+| `REDMINE_ISSUE_MD_FETCH` | fetch/upload | — | Save issues as MD files (default: `true`). `true` → generate `issues/{id}.md` + `issues.md`, upload to repository. `false` → register via GitHub Issues API |
 
 > ※ One of `REDMINE_API_KEY` or `REDMINE_USERNAME`+`REDMINE_PASSWORD` is required  
 > △ Not needed when using `--all` or `--project <id>`
@@ -171,9 +174,12 @@ scripts\migrate.bat       # Windows
 ├── output/                 # fetch output (gitignore)
 │   └── {project}/
 │       ├── wiki/
-│       ├── attachments/
-│       ├── attachments-ext/  # External files downloaded from Redmine URLs
-│       ├── issues/
+│       ├── attachments/           # Wiki attachments
+│       ├── attachments-ext/       # External files downloaded from Redmine URLs
+│       ├── attachments-issue/     # Issue attachments
+│       ├── issues-json/           # Issue JSON + Label/Milestone definitions
+│       ├── issues/                # Issue MD files (REDMINE_ISSUE_MD_FETCH=true)
+│       ├── issues.md              # Issue index table
 │       └── _migration/
 ├── cache/                  # API cache (gitignore)
 └── migration-state.json    # Progress state (gitignore)

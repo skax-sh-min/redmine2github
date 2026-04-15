@@ -26,12 +26,15 @@ public class MigrationState {
     // ── upload 단계 ───────────────────────────────────────────────────────────
 
     /** upload 단계: 업로드 완료된 wiki 파일 경로 (예: wiki/GettingStarted.md) */
-    private Set<String>  completedWikiPages = new HashSet<>();
-    private Set<Integer> completedIssueIds  = new HashSet<>();
-    private Set<Integer> failedIssueIds     = new HashSet<>();
-    private boolean timeEntriesDone         = false;
-    private boolean labelsDone              = false;
-    private boolean milestonesDone          = false;
+    private Set<String>  completedWikiPages   = new HashSet<>();
+    private Set<Integer> completedIssueIds    = new HashSet<>();
+    private Set<Integer> failedIssueIds       = new HashSet<>();
+    /** upload 단계: 업로드 완료된 issue MD 파일 경로 (예: issues/123.md) */
+    private Set<String>  completedIssueMdPaths = new HashSet<>();
+    private boolean issuesMdIndexDone          = false;
+    private boolean timeEntriesDone            = false;
+    private boolean labelsDone                 = false;
+    private boolean milestonesDone             = false;
 
     // ── fetch 단계 메서드 ──────────────────────────────────────────────────────
 
@@ -59,6 +62,12 @@ public class MigrationState {
     public void markIssueDone(int id)                { completedIssueIds.add(id); failedIssueIds.remove(id); }
     public void markIssueFailed(int id)              { failedIssueIds.add(id); }
     public Set<Integer> getFailedIssueIds()          { return failedIssueIds; }
+
+    public boolean isIssueMdDone(String path)        { return completedIssueMdPaths.contains(path); }
+    public void markIssueMdDone(String path)         { completedIssueMdPaths.add(path); }
+
+    public boolean isIssuesMdIndexDone()             { return issuesMdIndexDone; }
+    public void markIssuesMdIndexDone()              { this.issuesMdIndexDone = true; }
 
     public boolean isTimeEntriesDone()               { return timeEntriesDone; }
     public void markTimeEntriesDone()                { this.timeEntriesDone = true; }
@@ -94,6 +103,12 @@ public class MigrationState {
 
     public Set<Integer> getFailedIssueIds2()               { return failedIssueIds; }
     public void setFailedIssueIds(Set<Integer> s)          { failedIssueIds = s; }
+
+    public Set<String>  getCompletedIssueMdPaths()         { return completedIssueMdPaths; }
+    public void setCompletedIssueMdPaths(Set<String> s)    { completedIssueMdPaths = s; }
+
+    public boolean getIssuesMdIndexDone()                  { return issuesMdIndexDone; }
+    public void setIssuesMdIndexDone(boolean b)            { issuesMdIndexDone = b; }
 
     public boolean getTimeEntriesDone()                    { return timeEntriesDone; }
     public void setTimeEntriesDone(boolean b)              { timeEntriesDone = b; }
