@@ -33,6 +33,8 @@ public class AppConfig {
     private final List<String> redmineProjects;
     /** url-rewrites.yml 에서 로드한 URL 치환 규칙 목록. 각 원소는 {old, new} 쌍. */
     private final List<String[]> urlRewrites;
+    /** REDMINE_ISSUE_MD_FETCH=true — issue fetch 시 issues/{id}.md 파일도 저장할지 여부. */
+    private final boolean issueMdFetch;
 
     /** 특정 필드를 직접 주입하는 내부 생성자 (withProject 등에서 사용). */
     private AppConfig(String redmineUrl, String redmineApiKey, String redmineUsername,
@@ -40,7 +42,8 @@ public class AppConfig {
                       String githubToken, String githubRepo,
                       String outputDir, String cacheDir, String uploadMethod,
                       Map<String, String> userMapping, int requestDelayMs,
-                      List<String> redmineProjects, List<String[]> urlRewrites) {
+                      List<String> redmineProjects, List<String[]> urlRewrites,
+                      boolean issueMdFetch) {
         this.redmineUrl      = redmineUrl;
         this.redmineApiKey   = redmineApiKey;
         this.redmineUsername = redmineUsername;
@@ -55,6 +58,7 @@ public class AppConfig {
         this.requestDelayMs  = requestDelayMs;
         this.redmineProjects = redmineProjects;
         this.urlRewrites     = urlRewrites;
+        this.issueMdFetch    = issueMdFetch;
     }
 
     private AppConfig(Dotenv env, Map<String, String> userMapping) {
@@ -77,7 +81,8 @@ public class AppConfig {
                         .map(String::trim)
                         .filter(s -> !s.isBlank())
                         .toList();
-        this.urlRewrites = loadUrlRewrites();
+        this.urlRewrites  = loadUrlRewrites();
+        this.issueMdFetch = Boolean.parseBoolean(env.get("REDMINE_ISSUE_MD_FETCH", "true"));
     }
 
     public static AppConfig load() {
@@ -150,6 +155,7 @@ public class AppConfig {
     public int getRequestDelayMs()          { return requestDelayMs; }
     public List<String> getRedmineProjects() { return redmineProjects; }
     public List<String[]> getUrlRewrites()    { return urlRewrites; }
+    public boolean isIssueMdFetch()           { return issueMdFetch; }
 
     /**
      * 프로젝트별 출력 디렉터리: {@code {outputDir}/{project}}.
@@ -172,6 +178,6 @@ public class AppConfig {
     public AppConfig withProject(String projectIdentifier) {
         return new AppConfig(redmineUrl, redmineApiKey, redmineUsername, redminePassword,
                 projectIdentifier, githubToken, githubRepo, outputDir, cacheDir,
-                uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites);
+                uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites, issueMdFetch);
     }
 }

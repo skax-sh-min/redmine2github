@@ -14,6 +14,7 @@ public class RedmineIssue {
     private final String tracker;
     private final String priority;
     private final String category;
+    private final String authorLogin;
     private final String assigneeLogin;
     private final Integer versionId;
     private final String createdOn;
@@ -22,7 +23,8 @@ public class RedmineIssue {
 
     public RedmineIssue(int id, String subject, String description, String status,
                         String tracker, String priority, String category,
-                        String assigneeLogin, Integer versionId, String createdOn,
+                        String authorLogin, String assigneeLogin,
+                        Integer versionId, String createdOn,
                         List<RedmineJournal> journals, List<RedmineAttachment> attachments) {
         this.id            = id;
         this.subject       = subject;
@@ -31,6 +33,7 @@ public class RedmineIssue {
         this.tracker       = tracker;
         this.priority      = priority;
         this.category      = category;
+        this.authorLogin   = authorLogin;
         this.assigneeLogin = assigneeLogin;
         this.versionId     = versionId;
         this.createdOn     = createdOn;
@@ -56,6 +59,7 @@ public class RedmineIssue {
             node.path("tracker").path("name").asText(),
             node.path("priority").path("name").asText(),
             node.path("category").path("name").asText(null),
+            node.path("author").path("login").asText(null),
             node.path("assigned_to").path("login").asText(null),
             versionId,
             node.path("created_on").asText(),
@@ -71,6 +75,7 @@ public class RedmineIssue {
     public String getTracker()        { return tracker; }
     public String getPriority()       { return priority; }
     public String getCategory()       { return category; }
+    public String getAuthorLogin()    { return authorLogin; }
     public String getAssigneeLogin()  { return assigneeLogin; }
     public Integer getVersionId()     { return versionId; }
     public String getCreatedOn()      { return createdOn; }

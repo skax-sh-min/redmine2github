@@ -183,7 +183,7 @@ public class RedmineUrlRewriter {
         while (m.find()) {
             String label    = m.group(1);
             String fullUrl  = m.group(2);
-            String filename = decode(m.group(3));
+            String filename = sanitizeFilename(decode(m.group(3)));
             doDownload(downloader, fullUrl, filename, attachExtDir);
             String rel = attachExtRelPath(currentWikiDir, filename);
             m.appendReplacement(sb, Matcher.quoteReplacement("[" + label + "](" + rel + ")"));
@@ -200,7 +200,7 @@ public class RedmineUrlRewriter {
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
             String fullUrl  = m.group(1);
-            String filename = decode(m.group(2));
+            String filename = sanitizeFilename(decode(m.group(2)));
             doDownload(downloader, fullUrl, filename, attachExtDir);
             String rel = attachExtRelPath(currentWikiDir, filename);
             m.appendReplacement(sb, Matcher.quoteReplacement("[" + filename + "](" + rel + ")"));
@@ -305,6 +305,15 @@ public class RedmineUrlRewriter {
             log.warn("외부 첨부파일 다운로드 실패 [file={}, url={}, dest={}]: {}",
                     filename, url, destFile, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Windows/Linux 파일시스템에서 사용할 수 없는 문자를 '_'로 치환한다.
+     * Windows 금지 문자: \ / : * ? " < > |
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null) return "_";
+        return filename.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 
     private static String decode(String s) {
