@@ -123,13 +123,13 @@ public class IssueMigrationService {
 
     private void saveLabelDefs(RedmineClient redmine, Path issuesDir, ObjectMapper mapper) throws IOException {
         List<LocalLabel> labels = new ArrayList<>();
-        labels.add(new LocalLabel("project:" + config.getProjectSlug(), "1d76db",
+        labels.add(new LocalLabel("project:" + config.getProjectSlug(), "0e8a16",
                 "Redmine 프로젝트: " + config.getProjectSlug()));
-        redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel("tracker:" + t.getName(), "ee0701", "")));
+        redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel("tracker:" + t.getName(), "aaaaaa", "")));
         redmine.fetchIssuePriorities().forEach(p -> labels.add(new LocalLabel("priority:" + p.getName(), "fbca04", "")));
         List.of("New", "In Progress", "Resolved", "Closed", "Feedback").forEach(s ->
-                labels.add(new LocalLabel("status:" + s, "0075ca", "")));
-        redmine.fetchIssueCategories().forEach(c -> labels.add(new LocalLabel("category:" + c.getName(), "e4e669", "")));
+                labels.add(new LocalLabel("status:" + s, "00aabb", "")));
+        redmine.fetchIssueCategories().forEach(c -> labels.add(new LocalLabel("category:" + c.getName(), "e8852c", "")));
         mapper.writeValue(issuesDir.resolve("_labels.json").toFile(), labels);
         log.info("Label 정의 저장: {}개", labels.size());
     }
