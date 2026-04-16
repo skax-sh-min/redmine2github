@@ -131,4 +131,63 @@ class TextileConverterTest {
         // 정상 strikethrough (공백으로 둘러싸인 경우) 는 변환되어야 함
         assertEquals("~~삭제된 내용~~", converter.convert("-삭제된 내용-").trim());
     }
+
+    // ── Table ─────────────────────────────────────────────────────────────────
+
+    @Test
+    void table_headerAndDataRows() {
+        String input = "|_.이름|_.나이|\n|Alice|30|\n|Bob|25|";
+        String result = converter.convert(input).trim();
+        String[] lines = result.split("\n");
+        assertEquals("| 이름 | 나이 |", lines[0]);
+        assertEquals("| --- | --- |", lines[1]);
+        assertEquals("| Alice | 30 |", lines[2]);
+        assertEquals("| Bob | 25 |", lines[3]);
+    }
+
+    @Test
+    void table_noHeaderRow_firstRowBecomesHeader() {
+        // 헤더 마커 없는 표 — GFM 필수 요건상 첫 행이 헤더가 됨
+        String input = "|Cell 1|Cell 2|\n|Cell 3|Cell 4|";
+        String result = converter.convert(input).trim();
+        String[] lines = result.split("\n");
+        assertEquals("| Cell 1 | Cell 2 |", lines[0]);
+        assertEquals("| --- | --- |", lines[1]);
+        assertEquals("| Cell 3 | Cell 4 |", lines[2]);
+    }
+
+    @Test
+    void table_alignmentModifiersStripped() {
+        // <. >. =. 정렬 수식어 제거
+        String input = "|_. 이름|_. 나이|\n|<. Alice|>. 30|";
+        String result = converter.convert(input).trim();
+        String[] lines = result.split("\n");
+        assertEquals("| 이름 | 나이 |", lines[0]);
+        assertEquals("| --- | --- |", lines[1]);
+        assertEquals("| Alice | 30 |", lines[2]);
+    }
+
+    @Test
+    void table_colspanModifierStripped() {
+        // \2. colspan 수식어 제거
+        String input = "|_.이름|_.나이|_.점수|\n|\\2.Alice|100|";
+        String result = converter.convert(input).trim();
+        String[] lines = result.split("\n");
+        assertEquals("| 이름 | 나이 | 점수 |", lines[0]);
+        assertEquals("| --- | --- | --- |", lines[1]);
+        // \2. 제거 후 Alice만 남음 (열 수 맞추기 위해 빈 셀 추가)
+        assertTrue(lines[2].startsWith("| Alice |"));
+    }
+
+    @Test
+    void table_surroundedByText() {
+        // 표 앞뒤에 일반 텍스트가 있는 경우
+        String input = "서문\n\n|_.A|_.B|\n|1|2|\n\n후문";
+        String result = converter.convert(input);
+        assertTrue(result.contains("| A | B |"));
+        assertTrue(result.contains("| --- | --- |"));
+        assertTrue(result.contains("| 1 | 2 |"));
+        assertTrue(result.contains("서문"));
+        assertTrue(result.contains("후문"));
+    }
 }
