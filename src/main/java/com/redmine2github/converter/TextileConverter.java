@@ -3,6 +3,9 @@ package com.redmine2github.converter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,22 +60,21 @@ public class TextileConverter {
         String md = textile;
         // 매크로 먼저 처리 — 이후 패턴과 충돌 방지
         md = convertMacros(md);
-        // 이미지/첨부 먼저 변환 — 파일명이 이후 inline 포매팅(italic, strikethrough 등)에 오염되지 않도록
+        // 이미지/첨부 먼저 변환 — 표 셀 내에서도 정상 동작하도록 표 변환 전에 실행
         md = convertImages(md);
         md = convertAttachmentLinks(md);
-        // 리스트 먼저 변환 (헤딩 변환 후 # 기호와 충돌 방지)
-        md = replace(md, UL_ITEM,       "- $1");
-        md = replace(md, OL_ITEM,       "1. $1");
-        md = replace(md, H1,            "# $1");
-        md = replace(md, H2,            "## $1");
-        md = replace(md, H3,            "### $1");
-        md = replace(md, H4,            "#### $1");
-        md = replace(md, CODE_BLOCK,    "\n```\n$1\n```\n");
-        md = replace(md, CODE_INLINE,   "`$1`");
-        md = replace(md, BOLD,          "**$1**");
-        md = replace(md, ITALIC,        "*$1*");
-        md = replace(md, STRIKETHROUGH, "~~$1~~");
-        md = replace(md, LINK,          "[$1]($2)");
+        // 표 변환 — 셀 내 인라인 포매팅 포함. 변환된 표 행(|로 시작)은 이후 패스에서 제외
+        md = convertTables(md);
+        // 블록 수준 변환 (라인 시작 앵커 — 표 행에 해당 없음)
+        md = replace(md, UL_ITEM,    "- $1");
+        md = replace(md, OL_ITEM,    "1. $1");
+        md = replace(md, H1,         "# $1");
+        md = replace(md, H2,         "## $1");
+        md = replace(md, H3,         "### $1");
+        md = replace(md, H4,         "#### $1");
+        md = replace(md, CODE_BLOCK, "\n```\n$1\n```\n");
+        // 인라인 포매팅 — |로 시작하는 표 행은 이미 처리되었으므로 제외
+        md = applyInline(md);
 
         return md;
     }
@@ -123,6 +125,193 @@ public class TextileConverter {
             log.warn("attachment 링크 변환 실패: {}", e.getMessage());
             return input;
         }
+    }
+
+    /**
+     * Textile 표를 GFM 표로 변환한다.
+     *
+     * <p>Textile 표 형식:
+     * <pre>
+     * |_.Header 1|_.Header 2|
+     * |Cell 1|Cell 2|
+     * </pre>
+     *
+     * <p>지원하는 셀 수식어: {@code _.} (헤더), {@code <.} {@code >.} {@code =.} (정렬),
+     * {@code \N.} {@code /N.} (병합 — GFM 미지원이므로 제거), CSS 스타일/클래스 제거.
+     *
+     * <p>셀 내용에 인라인 포매팅(BOLD/ITALIC/CODE 등)을 적용한다.
+     * 생성된 GFM 표 행(| 시작)은 이후 {@link #applyInline} 패스에서 건너뛴다.
+     */
+    private String convertTables(String input) {
+        String normalized = input.replace("\r\n", "\n").replace("\r", "\n");
+        String[] lines = normalized.split("\n", -1);
+
+        StringBuilder result = new StringBuilder();
+        List<String> tableBuffer = new ArrayList<>();
+
+        for (String line : lines) {
+            if (!line.trim().isEmpty() && line.trim().startsWith("|")) {
+                tableBuffer.add(line);
+            } else {
+                if (!tableBuffer.isEmpty()) {
+                    result.append(renderGfmTable(tableBuffer));
+                    tableBuffer.clear();
+                }
+                result.append(line).append('\n');
+            }
+        }
+        if (!tableBuffer.isEmpty()) {
+            result.append(renderGfmTable(tableBuffer));
+        }
+
+        // split("\n",-1)로 분리 후 각 비표 줄에 \n 추가 → 원본이 \n 미종료면 마지막 \n 제거
+        String output = result.toString();
+        if (!normalized.endsWith("\n") && output.endsWith("\n")) {
+            output = output.substring(0, output.length() - 1);
+        }
+        return output;
+    }
+
+    private String renderGfmTable(List<String> rawLines) {
+        List<String[]> rows = new ArrayList<>();
+        int headerEnd = -1;
+
+        for (int i = 0; i < rawLines.size(); i++) {
+            rows.add(parseTableRow(rawLines.get(i)));
+            // |_. 을 포함하는 줄이 상단부터 연속으로 있으면 헤더 행으로 취급
+            if (rawLines.get(i).contains("|_.")) {
+                if (headerEnd == i - 1 || headerEnd == -1) {
+                    headerEnd = i;
+                }
+            }
+        }
+        // 헤더 행이 없으면 첫 행을 헤더로 (GFM 필수 요건)
+        if (headerEnd == -1) headerEnd = 0;
+
+        // 최대 열 개수
+        int cols = rows.stream().mapToInt(r -> r.length).max().orElse(1);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rows.size(); i++) {
+            sb.append("| ");
+            String[] padded = padRow(rows.get(i), cols);
+            // 셀 내용에 인라인 포매팅 적용 (이 시점에는 이미지/첨부는 변환 완료)
+            String[] formatted = Arrays.stream(padded)
+                    .map(this::applyInlineToCell)
+                    .toArray(String[]::new);
+            sb.append(String.join(" | ", formatted));
+            sb.append(" |\n");
+            if (i == headerEnd) {
+                // 구분선 — 코드로 생성되므로 이후 인라인 변환 패스에서 제외됨
+                sb.append("|");
+                for (int c = 0; c < cols; c++) sb.append(" --- |");
+                sb.append("\n");
+            }
+        }
+        sb.append('\n');
+        return sb.toString();
+    }
+
+    /** Textile 표 행을 셀 배열로 파싱한다. */
+    private String[] parseTableRow(String line) {
+        String content = line.trim();
+        if (content.startsWith("|")) content = content.substring(1);
+        if (content.endsWith("|"))  content = content.substring(0, content.length() - 1);
+        String[] parts = content.split("\\|", -1);
+        String[] cells = new String[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            cells[i] = cleanTableCell(parts[i]);
+        }
+        return cells;
+    }
+
+    /**
+     * Textile 셀에서 수식어를 제거하고 내용만 반환한다.
+     * <ul>
+     *   <li>{@code _.} — 헤더 마커</li>
+     *   <li>{@code <.} {@code >.} {@code =.} {@code ^.} {@code ~.} — 정렬/수직 정렬</li>
+     *   <li>{@code \N.} {@code /N.} — colspan/rowspan (GFM 미지원, 제거)</li>
+     *   <li>{@code {style}} {@code (class)} — CSS (제거)</li>
+     * </ul>
+     */
+    private String cleanTableCell(String cell) {
+        String s = cell.trim();
+        // colspan/rowspan: \2. /3. 등
+        s = s.replaceFirst("^[/\\\\]\\d+\\.\\s*", "");
+        // 헤더 마커: _.
+        if (s.startsWith("_.")) s = s.substring(2).trim();
+        // 정렬 수식어: <. >. =. ^. ~.
+        if (s.length() >= 2 && "<>=^~".indexOf(s.charAt(0)) >= 0 && s.charAt(1) == '.') {
+            s = s.substring(2).trim();
+        }
+        // CSS 스타일/클래스: {style}. (class).
+        s = s.replaceFirst("^\\{[^}]*\\}\\.?\\s*", "");
+        s = s.replaceFirst("^\\([^)]*\\)\\.?\\s*", "");
+        return s.trim();
+    }
+
+    /** 셀 내용에만 인라인 포매팅을 적용한다 (표 구조 기호 `|` `---` 제외). */
+    private String applyInlineToCell(String cell) {
+        String s = cell;
+        s = replace(s, CODE_INLINE,   "`$1`");
+        s = replace(s, BOLD,          "**$1**");
+        s = replace(s, ITALIC,        "*$1*");
+        s = replace(s, STRIKETHROUGH, "~~$1~~");
+        s = replace(s, LINK,          "[$1]($2)");
+        return s;
+    }
+
+    /**
+     * 비표(非表) 텍스트에 인라인 포매팅을 적용한다.
+     *
+     * <p>|로 시작하는 표 행은 {@link #renderGfmTable}에서 이미 처리되었으므로 건너뛴다.
+     * 연속된 비표 줄은 하나의 블록으로 처리해 멀티라인 패턴도 올바르게 동작한다.
+     */
+    private String applyInline(String input) {
+        String[] lines = input.split("\n", -1);
+        StringBuilder result = new StringBuilder();
+        StringBuilder textBlock = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            boolean isTableLine = !line.trim().isEmpty() && line.trim().startsWith("|");
+            if (isTableLine) {
+                if (textBlock.length() > 0) {
+                    result.append(applyInlineToText(textBlock.toString()));
+                    textBlock.setLength(0);
+                }
+                result.append(line).append('\n');
+            } else {
+                textBlock.append(line).append('\n');
+            }
+        }
+        if (textBlock.length() > 0) {
+            result.append(applyInlineToText(textBlock.toString()));
+        }
+
+        // split("-1")로 마지막 빈 원소 포함 → 원본이 \n 미종료면 결과 끝 \n 제거
+        String output = result.toString();
+        if (!input.endsWith("\n") && output.endsWith("\n")) {
+            output = output.substring(0, output.length() - 1);
+        }
+        return output;
+    }
+
+    private String applyInlineToText(String text) {
+        String s = text;
+        s = replace(s, CODE_INLINE,   "`$1`");
+        s = replace(s, BOLD,          "**$1**");
+        s = replace(s, ITALIC,        "*$1*");
+        s = replace(s, STRIKETHROUGH, "~~$1~~");
+        s = replace(s, LINK,          "[$1]($2)");
+        return s;
+    }
+
+    private static String[] padRow(String[] row, int cols) {
+        if (row.length >= cols) return row;
+        String[] padded = Arrays.copyOf(row, cols);
+        Arrays.fill(padded, row.length, cols, "");
+        return padded;
     }
 
     private String replace(String input, Pattern pattern, String replacement) {
