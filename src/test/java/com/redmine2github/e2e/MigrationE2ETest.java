@@ -261,6 +261,7 @@ class MigrationE2ETest {
         redmineServer.enqueue(new MockResponse()
             .setBody("{\"versions\":[]}")
             .addHeader("Content-Type", "application/json"));
+        // fetchAllIssues() 응답
         redmineServer.enqueue(new MockResponse()
             .setBody("{\"issues\":[{\"id\":1,\"subject\":\"Test issue\","
                 + "\"description\":\"h2. Details\\n\\nSome info.\","
@@ -268,19 +269,26 @@ class MigrationE2ETest {
                 + "\"priority\":{\"name\":\"Normal\"},\"journals\":[],\"attachments\":[]}],"
                 + "\"total_count\":1}")
             .addHeader("Content-Type", "application/json"));
+        // fetchIssueDetail(1) 응답 — /issues/1.json?include=journals,attachments
+        redmineServer.enqueue(new MockResponse()
+            .setBody("{\"issue\":{\"id\":1,\"subject\":\"Test issue\","
+                + "\"description\":\"h2. Details\\n\\nSome info.\","
+                + "\"status\":{\"name\":\"New\"},\"tracker\":{\"name\":\"Bug\"},"
+                + "\"priority\":{\"name\":\"Normal\"},\"journals\":[],\"attachments\":[]}}")
+            .addHeader("Content-Type", "application/json"));
 
         IssueMigrationService service = new IssueMigrationService(config);
         assertDoesNotThrow(() -> service.fetch(false, false));
 
-        Path issueJson = projectOutputDir.resolve("issues/1.json");
+        Path issueJson = projectOutputDir.resolve("issues-json/1.json");
         assertTrue(Files.exists(issueJson), "Issue JSON 파일이 생성되어야 함");
 
         String content = Files.readString(issueJson);
         assertTrue(content.contains("\"subject\""), "subject 필드 확인");
         assertTrue(content.contains("Test issue"), "subject 값 확인");
 
-        assertTrue(Files.exists(projectOutputDir.resolve("issues/_labels.json")), "Label 정의 파일");
-        assertTrue(Files.exists(projectOutputDir.resolve("issues/_milestones.json")), "Milestone 정의 파일");
+        assertTrue(Files.exists(projectOutputDir.resolve("issues-json/_labels.json")), "Label 정의 파일");
+        assertTrue(Files.exists(projectOutputDir.resolve("issues-json/_milestones.json")), "Milestone 정의 파일");
     }
 
     // ── Time Entries fetch E2E ────────────────────────────────────────────────
