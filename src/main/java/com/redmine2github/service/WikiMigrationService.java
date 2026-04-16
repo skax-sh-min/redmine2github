@@ -206,10 +206,54 @@ public class WikiMigrationService {
         markdown = redmineUrlRewriter.rewrite(
                 markdown, config.getProjectSlug(), currentWikiDir, attachExtDir, extDownloader);
 
+        // ④ 제목 + 메타 정보 블록 (작성자·날짜) 앞에 삽입
+        markdown = prependPageMeta(page, markdown);
+
         Path localPath = Path.of(config.getProjectOutputDir(), "wiki", wikiPath);
         Files.createDirectories(localPath.getParent());
         Files.writeString(localPath, markdown);
         log.info("로컬 저장: {}", localPath);
+    }
+
+    /**
+     * Wiki 페이지 MD 파일 상단에 제목과 메타 정보 블록을 삽입한다.
+     *
+     * <pre>
+     * # Page Title
+     *
+     * &lt;small&gt;작성자: Alice &amp;nbsp;·&amp;nbsp; 작성일: 2023-09-07 &amp;nbsp;·&amp;nbsp; 수정일: 2025-01-08&lt;/small&gt;
+     *
+     * ---
+     *
+     * (본문)
+     * </pre>
+     */
+    private static String prependPageMeta(RedmineWikiPage page, String body) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ").append(page.getTitle()).append("\n\n");
+
+        List<String> parts = new ArrayList<>();
+        if (page.getAuthorName() != null && !page.getAuthorName().isBlank())
+            parts.add("작성자: " + page.getAuthorName());
+        if (page.getCreatedOn() != null && !page.getCreatedOn().isBlank())
+            parts.add("작성일: " + dateOnly(page.getCreatedOn()));
+        if (page.getUpdatedOn() != null && !page.getUpdatedOn().isBlank())
+            parts.add("수정일: " + dateOnly(page.getUpdatedOn()));
+
+        if (!parts.isEmpty()) {
+            sb.append("<small>")
+              .append(String.join(" &nbsp;·&nbsp; ", parts))
+              .append("</small>\n\n");
+        }
+
+        sb.append("---\n\n");
+        sb.append(body);
+        return sb.toString();
+    }
+
+    private static String dateOnly(String iso) {
+        int t = iso.indexOf('T');
+        return t > 0 ? iso.substring(0, t) : iso;
     }
 
     // ── Phase 2: 로컬 → GitHub ────────────────────────────────────────────────
