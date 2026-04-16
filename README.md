@@ -63,6 +63,7 @@ Phase 2: upload         →  GitHub
 | `GITHUB_UPLOAD_METHOD` | upload | — | `API` or `JGIT` (default: `API`) |
 | `REQUEST_DELAY_MS` | both | — | Delay between API requests in ms (default: `10`) |
 | `REDMINE_ISSUE_MD_FETCH` | fetch/upload | — | Save issues as MD files (default: `true`). `true` → generate `issues/{id}.md` + `issues.md`, upload to repository. `false` → register via GitHub Issues API |
+| `UPLOAD_MAX_FILE_SIZE_KB` | upload | — | Skip files exceeding this size in KB during upload (default: `0` = no limit). e.g. `10240` skips files larger than 10 MB |
 
 > ※ One of `REDMINE_API_KEY` or `REDMINE_USERNAME`+`REDMINE_PASSWORD` is required  
 > △ Not needed when using `--all` or `--project <id>`
@@ -124,6 +125,10 @@ Converted files are saved to the `output/` directory. You can review and edit th
 
 # Windows
 scripts\upload.bat
+
+# Upload all projects at once (after fetch --all)
+./scripts/upload.sh --all
+./scripts/upload.sh --all --skip foo,bar
 ```
 
 ### Combined Run (fetch + upload)
@@ -150,9 +155,9 @@ scripts\migrate.bat       # Windows
 | `--only <target>` | Run only `wiki` / `issues` / `time-entries` |
 | `--resume` | Resume from the last interruption point |
 | `--retry-failed` | Reprocess only items that failed in the previous run |
-| `--all` | Fetch all accessible projects (`fetch` only) |
+| `--all` | `fetch`: Fetch all accessible projects. `upload`: Upload all project directories under `output/` |
 | `--project <id>` | Specify a project to fetch (`fetch` only) |
-| `--skip <id,...>` | Projects to exclude when using `--all` (`fetch` only) |
+| `--skip <id,...>` | Projects to exclude when using `--all` |
 
 ## File Structure
 

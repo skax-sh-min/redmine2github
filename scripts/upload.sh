@@ -12,6 +12,9 @@
 #   ./scripts/upload.sh --only time-entries      # 작업 내역만
 #   ./scripts/upload.sh --resume                 # 이전 중단 지점부터 재개
 #   ./scripts/upload.sh --retry-failed           # 실패 항목 재처리
+#   ./scripts/upload.sh --all                    # output/ 하위 모든 프로젝트 업로드
+#   ./scripts/upload.sh --all --only wiki        # 모든 프로젝트, Wiki만
+#   ./scripts/upload.sh --all --skip foo,bar     # 일부 프로젝트 제외
 #
 # 필요 환경 변수:
 #   GITHUB_TOKEN, GITHUB_REPO

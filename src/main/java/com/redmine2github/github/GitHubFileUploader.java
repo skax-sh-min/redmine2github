@@ -33,6 +33,19 @@ public class GitHubFileUploader {
     }
 
     public void uploadFile(Path localFile, String repoPath, String commitMessage) {
+        long maxKb = config.getUploadMaxFileSizeKb();
+        if (maxKb > 0) {
+            try {
+                long fileSizeKb = Files.size(localFile) / 1024;
+                if (fileSizeKb > maxKb) {
+                    log.warn("[SKIP] 파일 크기 초과 ({}KB > 제한 {}KB): {}", fileSizeKb, maxKb, repoPath);
+                    return;
+                }
+            } catch (IOException e) {
+                log.warn("파일 크기 확인 실패 [{}]: {}", repoPath, e.getMessage());
+            }
+        }
+
         if ("JGIT".equalsIgnoreCase(config.getUploadMethod())) {
             uploadViaJGit(localFile, repoPath, commitMessage);
         } else {
