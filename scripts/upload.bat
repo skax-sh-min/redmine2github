@@ -12,6 +12,9 @@
 ::   scripts\upload.bat --only time-entries      :: time entries only
 ::   scripts\upload.bat --resume                 :: resume from checkpoint
 ::   scripts\upload.bat --retry-failed           :: retry failed items
+::   scripts\upload.bat --all                    :: upload all projects under output\
+::   scripts\upload.bat --all --only wiki        :: all projects, wiki only
+::   scripts\upload.bat --all --skip foo,bar     :: skip specific projects
 ::
 :: Prerequisite: run fetch.bat first so output\ files are ready.
 :: ============================================================
