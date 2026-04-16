@@ -15,7 +15,7 @@
 5. [2단계 마이그레이션](#5-2단계-마이그레이션)
    - [Phase 1: fetch — Redmine → 로컬](#51-phase-1-fetch--redmine--로컬)
    - [Phase 2: upload — 로컬 → GitHub](#52-phase-2-upload--로컬--github)
-6. [전체 프로젝트 일괄 수집 (fetch --all)](#6-전체-프로젝트-일괄-수집-fetch---all)
+6. [전체 프로젝트 일괄 처리 (--all)](#6-전체-프로젝트-일괄-처리---all)
 7. [통합 실행 (migrate)](#7-통합-실행-migrate)
 8. [CLI 커맨드 레퍼런스](#8-cli-커맨드-레퍼런스)
 9. [출력 파일 구조](#9-출력-파일-구조)
@@ -378,9 +378,21 @@ scripts\upload.bat
 ./scripts/upload.sh --only time-entries  # 작업 내역만
 ```
 
+**전체 프로젝트 일괄 업로드** (`fetch --all`로 수집한 경우):
+
+```bash
+./scripts/upload.sh --all                    # output/ 하위 모든 프로젝트
+./scripts/upload.sh --all --only wiki        # 모든 프로젝트, Wiki만
+./scripts/upload.sh --all --skip foo,bar     # 일부 프로젝트 제외
+```
+
+> `--all`은 Redmine API를 사용하지 않고 `output/` 하위 디렉터리를 스캔합니다.
+
 ---
 
-## 6. 전체 프로젝트 일괄 수집 (fetch --all)
+## 6. 전체 프로젝트 일괄 처리 (--all)
+
+### 6.1 fetch --all — 전체 프로젝트 수집
 
 Redmine에 접근 가능한 **모든 프로젝트**를 한 번에 수집합니다. `REDMINE_PROJECT` 환경 변수가 없어도 실행할 수 있습니다.
 
@@ -423,7 +435,32 @@ output/
     └── ...
 ```
 
-> **팁**: 수집 후 각 프로젝트 디렉터리를 검토하고, 각 프로젝트별로 `upload` 커맨드를 실행하거나 `REDMINE_PROJECT`를 해당 프로젝트 ID로 설정하여 업로드하세요.
+### 6.2 upload --all — 전체 프로젝트 업로드
+
+`fetch --all`로 수집한 결과를 한 번에 업로드합니다.  
+Redmine API는 사용하지 않으며 `output/` 하위 디렉터리를 자동으로 스캔합니다.
+
+```bash
+# macOS / Linux
+./scripts/upload.sh --all
+
+# Windows
+scripts\upload.bat --all
+```
+
+**옵션 조합:**
+
+```bash
+./scripts/upload.sh --all --only wiki          # 모든 프로젝트, Wiki만
+./scripts/upload.sh --all --skip foo,bar       # foo, bar 프로젝트 제외
+./scripts/upload.sh --all --resume             # 중단 후 재개
+
+# Windows
+scripts\upload.bat --all --only wiki
+scripts\upload.bat --all --skip foo,bar
+```
+
+> **팁**: `fetch --all` 후 `output/` 각 프로젝트 디렉터리를 검토한 뒤 `upload --all`을 실행하세요.
 
 ---
 
@@ -492,10 +529,9 @@ java -jar redmine2github.jar upload [옵션...]
 | `--only <대상>` | `wiki` / `issues` / `time-entries` 선택 |
 | `--resume` | 이전 중단 지점부터 재개 |
 | `--retry-failed` | 이전 실패 항목 재처리 |
+| `--all` | `output/` 하위 모든 프로젝트 디렉터리를 순서대로 업로드 |
+| `--skip <id,...>` | `--all` 사용 시 제외할 프로젝트 (쉼표 구분) |
 | `-h`, `--help` | 도움말 |
-
-> **`--all` 미지원**: upload는 `REDMINE_PROJECT` 환경 변수로 지정된 단일 프로젝트만 업로드합니다.  
-> 여러 프로젝트를 업로드하려면 `REDMINE_PROJECT`와 `GITHUB_REPO`를 변경하며 프로젝트별로 실행하세요.
 
 ### `migrate` — 통합 실행
 
@@ -539,7 +575,7 @@ java -jar build/libs/redmine2github.jar generate-mapping
 ./scripts/upload.sh --retry-failed
 ```
 
-**시나리오 B: 전체 프로젝트 일괄 수집**
+**시나리오 B: 전체 프로젝트 일괄 처리**
 
 ```bash
 # 1. 모든 프로젝트 수집 (REDMINE_PROJECT 불필요)
@@ -548,9 +584,12 @@ scripts\fetch.bat --all           # Windows
 
 # 2. output/{project-id}/ 디렉터리 검토
 
-# 3. 프로젝트별로 GitHub 업로드
-#    (REDMINE_PROJECT와 GITHUB_REPO를 각 프로젝트에 맞게 설정)
-REDMINE_PROJECT=my-project ./scripts/upload.sh
+# 3. 전체 프로젝트 일괄 업로드
+./scripts/upload.sh --all         # macOS / Linux
+scripts\upload.bat --all          # Windows
+
+# 3-a. 특정 프로젝트 제외하려면
+./scripts/upload.sh --all --skip foo,bar
 ```
 
 ---

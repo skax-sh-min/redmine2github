@@ -124,6 +124,10 @@ Converted files are saved to the `output/` directory. You can review and edit th
 
 # Windows
 scripts\upload.bat
+
+# Upload all projects at once (after fetch --all)
+./scripts/upload.sh --all
+./scripts/upload.sh --all --skip foo,bar
 ```
 
 ### Combined Run (fetch + upload)
@@ -150,9 +154,9 @@ scripts\migrate.bat       # Windows
 | `--only <target>` | Run only `wiki` / `issues` / `time-entries` |
 | `--resume` | Resume from the last interruption point |
 | `--retry-failed` | Reprocess only items that failed in the previous run |
-| `--all` | Fetch all accessible projects (`fetch` only) |
+| `--all` | `fetch`: Fetch all accessible projects. `upload`: Upload all project directories under `output/` |
 | `--project <id>` | Specify a project to fetch (`fetch` only) |
-| `--skip <id,...>` | Projects to exclude when using `--all` (`fetch` only) |
+| `--skip <id,...>` | Projects to exclude when using `--all` |
 
 ## File Structure
 
