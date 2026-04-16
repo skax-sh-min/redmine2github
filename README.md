@@ -63,6 +63,7 @@ Phase 2: upload         →  GitHub
 | `GITHUB_UPLOAD_METHOD` | upload | — | `API` or `JGIT` (default: `API`) |
 | `REQUEST_DELAY_MS` | both | — | Delay between API requests in ms (default: `10`) |
 | `REDMINE_ISSUE_MD_FETCH` | fetch/upload | — | Save issues as MD files (default: `true`). `true` → generate `issues/{id}.md` + `issues.md`, upload to repository. `false` → register via GitHub Issues API |
+| `UPLOAD_MAX_FILE_SIZE_KB` | upload | — | Skip files exceeding this size in KB during upload (default: `0` = no limit). e.g. `10240` skips files larger than 10 MB |
 
 > ※ One of `REDMINE_API_KEY` or `REDMINE_USERNAME`+`REDMINE_PASSWORD` is required  
 > △ Not needed when using `--all` or `--project <id>`

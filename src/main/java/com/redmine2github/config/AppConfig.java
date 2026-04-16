@@ -35,6 +35,11 @@ public class AppConfig {
     private final List<String[]> urlRewrites;
     /** REDMINE_ISSUE_MD_FETCH=true — issue fetch 시 issues/{id}.md 파일도 저장할지 여부. */
     private final boolean issueMdFetch;
+    /**
+     * UPLOAD_MAX_FILE_SIZE_KB — 업로드 시 이 크기(KB)를 초과하는 파일은 건너뜁니다.
+     * 0 이하이면 제한 없음.
+     */
+    private final long uploadMaxFileSizeKb;
 
     /** 특정 필드를 직접 주입하는 내부 생성자 (withProject 등에서 사용). */
     private AppConfig(String redmineUrl, String redmineApiKey, String redmineUsername,
@@ -43,22 +48,23 @@ public class AppConfig {
                       String outputDir, String cacheDir, String uploadMethod,
                       Map<String, String> userMapping, int requestDelayMs,
                       List<String> redmineProjects, List<String[]> urlRewrites,
-                      boolean issueMdFetch) {
-        this.redmineUrl      = redmineUrl;
-        this.redmineApiKey   = redmineApiKey;
-        this.redmineUsername = redmineUsername;
-        this.redminePassword = redminePassword;
-        this.redmineProject  = redmineProject;
-        this.githubToken     = githubToken;
-        this.githubRepo      = githubRepo;
-        this.outputDir       = outputDir;
-        this.cacheDir        = cacheDir;
-        this.uploadMethod    = uploadMethod;
-        this.userMapping     = userMapping;
-        this.requestDelayMs  = requestDelayMs;
-        this.redmineProjects = redmineProjects;
-        this.urlRewrites     = urlRewrites;
-        this.issueMdFetch    = issueMdFetch;
+                      boolean issueMdFetch, long uploadMaxFileSizeKb) {
+        this.redmineUrl          = redmineUrl;
+        this.redmineApiKey       = redmineApiKey;
+        this.redmineUsername     = redmineUsername;
+        this.redminePassword     = redminePassword;
+        this.redmineProject      = redmineProject;
+        this.githubToken         = githubToken;
+        this.githubRepo          = githubRepo;
+        this.outputDir           = outputDir;
+        this.cacheDir            = cacheDir;
+        this.uploadMethod        = uploadMethod;
+        this.userMapping         = userMapping;
+        this.requestDelayMs      = requestDelayMs;
+        this.redmineProjects     = redmineProjects;
+        this.urlRewrites         = urlRewrites;
+        this.issueMdFetch        = issueMdFetch;
+        this.uploadMaxFileSizeKb = uploadMaxFileSizeKb;
     }
 
     private AppConfig(Dotenv env, Map<String, String> userMapping) {
@@ -81,8 +87,9 @@ public class AppConfig {
                         .map(String::trim)
                         .filter(s -> !s.isBlank())
                         .toList();
-        this.urlRewrites  = loadUrlRewrites();
-        this.issueMdFetch = Boolean.parseBoolean(env.get("REDMINE_ISSUE_MD_FETCH", "true"));
+        this.urlRewrites         = loadUrlRewrites();
+        this.issueMdFetch        = Boolean.parseBoolean(env.get("REDMINE_ISSUE_MD_FETCH", "true"));
+        this.uploadMaxFileSizeKb = Long.parseLong(env.get("UPLOAD_MAX_FILE_SIZE_KB", "0"));
     }
 
     public static AppConfig load() {
@@ -156,6 +163,8 @@ public class AppConfig {
     public List<String> getRedmineProjects() { return redmineProjects; }
     public List<String[]> getUrlRewrites()    { return urlRewrites; }
     public boolean isIssueMdFetch()           { return issueMdFetch; }
+    /** 업로드 파일 크기 상한 (KB). 0 이하이면 제한 없음. */
+    public long getUploadMaxFileSizeKb()      { return uploadMaxFileSizeKb; }
 
     /**
      * 프로젝트별 출력 디렉터리: {@code {outputDir}/{project}}.
@@ -178,6 +187,7 @@ public class AppConfig {
     public AppConfig withProject(String projectIdentifier) {
         return new AppConfig(redmineUrl, redmineApiKey, redmineUsername, redminePassword,
                 projectIdentifier, githubToken, githubRepo, outputDir, cacheDir,
-                uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites, issueMdFetch);
+                uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites,
+                issueMdFetch, uploadMaxFileSizeKb);
     }
 }

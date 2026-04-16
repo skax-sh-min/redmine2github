@@ -159,6 +159,7 @@ java -jar build/libs/redmine2github.jar --help
 | `CACHE_DIR` | fetch | — | API 응답 캐시 경로 (기본: `./cache`) |
 | `GITHUB_UPLOAD_METHOD` | upload | — | 업로드 방식: `API` 또는 `JGIT` (기본: `API`) |
 | `REDMINE_ISSUE_MD_FETCH` | fetch/upload | — | 일감을 MD 파일로 저장·업로드할지 여부 (기본: `true`). `true`이면 `issues/{id}.md` + `issues.md` 생성 및 리포지터리 업로드. `false`이면 GitHub Issues API로 등록 |
+| `UPLOAD_MAX_FILE_SIZE_KB` | upload | — | 이 크기(KB)를 초과하는 파일은 업로드에서 제외 (기본: `0` = 제한 없음). 예: `10240` → 10MB 초과 파일 제외 |
 
 > ※ `REDMINE_API_KEY` **또는** `REDMINE_USERNAME`+`REDMINE_PASSWORD` 중 하나 필수  
 > △ `fetch --all` 또는 `fetch --project <id>` 사용 시 불필요
@@ -224,6 +225,10 @@ GITHUB_UPLOAD_METHOD=API
 # true  → issues/{id}.md 저장 + issues.md 인덱스 생성 → 리포지터리 업로드
 # false → GitHub Issues API로 직접 등록
 REDMINE_ISSUE_MD_FETCH=true
+
+# 업로드 파일 크기 상한 (KB) — 초과 파일 제외 (기본: 0 = 제한 없음)
+# 예: 10240이면 10MB 초과 파일을 업로드에서 제외
+# UPLOAD_MAX_FILE_SIZE_KB=0
 ```
 
 > **보안 주의**: `.env` 파일은 절대 커밋하지 마세요. `.gitignore`에 포함되어 있습니다.
@@ -886,7 +891,7 @@ grep "ERROR\|WARN" migration.log
 |------|------|
 | Textile 변환 | 기본 문법만 지원. 테이블·중첩 목록·인라인 스타일은 수동 수정 필요 |
 | GitHub Wiki | GitHub Wiki 저장소 업로드 미지원 (일반 Repository 파일로만 업로드) |
-| 첨부파일 크기 | API 방식: 파일당 100MB 초과 불가 → JGIT 방식 사용 |
+| 첨부파일 크기 | API 방식: 파일당 100MB 초과 불가 → JGIT 방식 사용. `UPLOAD_MAX_FILE_SIZE_KB`로 업로드 상한을 설정하면 대용량 파일을 사전에 제외할 수 있음 |
 | 사용자 계정 | Redmine 사용자 계정·권한 이전 불가 |
 | Issue 번호 | GitHub Issue 번호 ≠ Redmine 일감 번호. Issue 본문에 원본 Redmine URL 포함 |
 | Redmine 플러그인 | 플러그인 전용 문법 완전 변환 미보장 |
