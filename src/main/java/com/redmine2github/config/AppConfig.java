@@ -1,5 +1,6 @@
 package com.redmine2github.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -98,44 +99,50 @@ public class AppConfig {
         return new AppConfig(env, userMapping);
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String[]> loadUrlRewrites() {
         File file = new File("url-rewrites.yml");
         if (!file.exists()) return Collections.emptyList();
         try {
             ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            Map<String, Object> root = mapper.readValue(file, Map.class);
+            Map<String, Object> root = mapper.readValue(file, new TypeReference<Map<String, Object>>() {});
             Object rawList = root.get("rewrites");
-            if (rawList instanceof List<?> list) {
-                List<String[]> result = new ArrayList<>();
-                for (Object item : list) {
-                    if (item instanceof Map<?, ?> m) {
-                        String oldVal = (String) m.get("old");
-                        String newVal = (String) m.get("new");
-                        if (oldVal != null && newVal != null) {
-                            result.add(new String[]{oldVal, newVal});
-                        }
-                    }
+            if (!(rawList instanceof List<?> list)) return Collections.emptyList();
+            List<String[]> result = new ArrayList<>();
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> m)) continue;
+                Object oldRaw = m.get("old");
+                Object newRaw = m.get("new");
+                if (!(oldRaw instanceof String oldVal) || !(newRaw instanceof String newVal)) {
+                    log.warn("url-rewrites.yml: 유효하지 않은 항목 무시 — old={}, new={}", oldRaw, newRaw);
+                    continue;
                 }
-                return result;
+                result.add(new String[]{oldVal, newVal});
             }
+            return result;
         } catch (Exception e) {
             log.warn("url-rewrites.yml 로드 실패: {}", e.getMessage());
         }
         return Collections.emptyList();
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, String> loadUserMapping() {
         File file = new File("user-mapping.yml");
         if (!file.exists()) return Collections.emptyMap();
         try {
             ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            Map<String, Object> root = mapper.readValue(file, Map.class);
+            Map<String, Object> root = mapper.readValue(file, new TypeReference<Map<String, Object>>() {});
             Object users = root.get("users");
-            if (users instanceof Map<?, ?> m) {
-                return (Map<String, String>) m;
+            if (!(users instanceof Map<?, ?> m)) return Collections.emptyMap();
+            Map<String, String> result = new java.util.LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                if (entry.getKey() instanceof String k && entry.getValue() instanceof String v) {
+                    result.put(k, v);
+                } else {
+                    log.warn("user-mapping.yml: 유효하지 않은 항목 무시 — key={}, value={}",
+                             entry.getKey(), entry.getValue());
+                }
             }
+            return result;
         } catch (Exception e) {
             log.warn("user-mapping.yml 로드 실패: {}", e.getMessage());
         }

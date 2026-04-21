@@ -101,7 +101,6 @@ public class MigrationState {
     public Set<Integer> getCompletedIssueIds()             { return completedIssueIds; }
     public void setCompletedIssueIds(Set<Integer> s)       { completedIssueIds = s; }
 
-    public Set<Integer> getFailedIssueIds2()               { return failedIssueIds; }
     public void setFailedIssueIds(Set<Integer> s)          { failedIssueIds = s; }
 
     public Set<String>  getCompletedIssueMdPaths()         { return completedIssueMdPaths; }

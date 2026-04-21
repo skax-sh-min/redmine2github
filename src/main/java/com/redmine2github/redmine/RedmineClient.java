@@ -180,8 +180,9 @@ public class RedmineClient {
             nodes = fetchAllPages(baseUrl + "/time_entries.json?project_id=" + project, "time_entries");
         } catch (RuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("[403]")) {
-                log.warn("작업 내역 조회 권한 없음 (403) — time entries 스킵. " +
-                         "Redmine 관리자에게 'Log time' 권한을 요청하거나 .env에서 --only 옵션으로 제외하세요.");
+                log.warn("작업 내역 조회 권한 없음 (403) — time entries 스킵 (데이터 누락됨). " +
+                         "Redmine 관리자에게 'Log time' 권한을 요청하거나 --only 옵션으로 제외하세요.");
+                log.warn("[데이터 누락] time_entries: 403 Forbidden — 마이그레이션 결과에 작업 내역이 포함되지 않습니다.");
                 return Collections.emptyList();
             }
             throw e;
@@ -321,7 +322,8 @@ public class RedmineClient {
         } catch (RuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("[403]")) {
                 log.warn("/users.json 접근 권한 없음 (403) — Redmine 관리자 권한이 필요합니다. " +
-                         "프로젝트 구성원 목록으로 대체합니다.");
+                         "프로젝트 구성원 목록으로 대체합니다 (login 필드 누락 주의).");
+                log.warn("[데이터 누락] users: 403 Forbidden — user-mapping.yml 생성 시 login 대신 표시명이 사용됩니다.");
                 return fetchMemberUsers();
             }
             throw e;
