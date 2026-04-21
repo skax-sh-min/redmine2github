@@ -127,6 +127,24 @@ class LinkRewriterTest {
         assertEquals("[Page Name](Page--Name.md)", result);
     }
 
+    @Test
+    void underscoreInTitleMatchesSpaceInLink() {
+        // 제목은 '_' 저장, 링크는 공백 사용 — 둘이 같은 페이지로 해석되어야 함
+        Map<String, String> map = Map.of("기술지원-OO산업_차세대_시스템",
+                "REOCN_기술지원/기술지원-OO산업_차세대_시스템.md");
+        String result = rewriter.rewrite("[[기술지원-OO산업 차세대 시스템]]", map, "proj", "");
+        assertEquals("[기술지원-OO산업 차세대 시스템](REOCN_기술지원/기술지원-OO산업_차세대_시스템.md)", result);
+    }
+
+    @Test
+    void underscoreInTitleMatchesSpaceInLink_fromSubdir() {
+        // 하위 디렉터리에서 링크할 때도 올바른 상대 경로를 계산해야 함
+        Map<String, String> map = Map.of("기술지원-OO산업_차세대_시스템",
+                "REOCN_기술지원/기술지원-OO산업_차세대_시스템.md");
+        String result = rewriter.rewrite("[[기술지원-OO산업 차세대 시스템]]", map, "proj", "REOCN_기술지원");
+        assertEquals("[기술지원-OO산업 차세대 시스템](기술지원-OO산업_차세대_시스템.md)", result);
+    }
+
     // ── 크로스 프로젝트 링크 [[OtherProject:PageName]] ────────────────────────
 
     @Test
