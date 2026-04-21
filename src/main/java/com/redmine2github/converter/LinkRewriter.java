@@ -51,11 +51,20 @@ public class LinkRewriter {
             String pageRef = hashIdx >= 0 ? raw.substring(0, hashIdx).trim() : raw;
             String anchor  = hashIdx >= 0 ? raw.substring(hashIdx) : "";
 
+            // 절대 URL([[http://...]], [[https://...]])은 크로스 프로젝트 링크가 아님
+            if (pageRef.startsWith("http://") || pageRef.startsWith("https://")) {
+                String urlLabel = label != null ? label : pageRef;
+                return "[" + urlLabel + "](" + pageRef + anchor + ")";
+            }
+
             // 크로스 프로젝트 여부 확인: [[OtherProject:PageName]]
             // Redmine 프로젝트 식별자는 소문자·숫자·하이픈·언더스코어만 허용 ([a-z][a-z0-9_-]*)
             // 이 패턴에 맞지 않으면 콜론 포함 페이지 제목으로 처리 (예: [[API: 개요]])
+            // 콜론 직후가 '/'로 시작하면 URL 스킴이므로 제외 (http:// 잔여 케이스 방어)
             int colonIdx = pageRef.indexOf(':');
-            if (colonIdx >= 0 && pageRef.substring(0, colonIdx).trim().matches("[a-z][a-z0-9_-]*")) {
+            if (colonIdx >= 0
+                    && !pageRef.substring(colonIdx + 1).startsWith("/")
+                    && pageRef.substring(0, colonIdx).trim().matches("[a-z][a-z0-9_-]*")) {
                 String targetProject = pageRef.substring(0, colonIdx).trim();
                 String pageName      = pageRef.substring(colonIdx + 1).trim();
                 String displayLabel  = label != null ? label : pageName;
@@ -96,11 +105,11 @@ public class LinkRewriter {
     private String crossProjectRelPath(String currentProject, String currentWikiDir,
                                        String targetProject, String page) {
         String slug = page.replace(" ", "-");
-        Path from = currentWikiDir.isEmpty()
-                ? Path.of(currentProject, "wiki")
-                : Path.of(currentProject, "wiki", currentWikiDir);
-        Path to = Path.of(targetProject, "wiki", slug + ".md");
         try {
+            Path from = currentWikiDir.isEmpty()
+                    ? Path.of(currentProject, "wiki")
+                    : Path.of(currentProject, "wiki", currentWikiDir);
+            Path to = Path.of(targetProject, "wiki", slug + ".md");
             return from.relativize(to).toString().replace('\\', '/');
         } catch (Exception e) {
             return targetProject + "/wiki/" + slug + ".md";
