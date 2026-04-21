@@ -206,7 +206,12 @@ public class WikiMigrationService {
         markdown = redmineUrlRewriter.rewrite(
                 markdown, config.getProjectSlug(), currentWikiDir, attachExtDir, extDownloader);
 
-        // ④ 제목 + 메타 정보 블록 (작성자·날짜) 앞에 삽입
+        // ④ 첨부 파일 목록 — 본문에서 참조되지 않은 파일도 하단에 나열
+        if (!page.getAttachments().isEmpty()) {
+            markdown = appendAttachmentList(markdown, page.getAttachments(), attNameMapping, attachBasePath);
+        }
+
+        // ⑤ 제목 + 메타 정보 블록 (작성자·날짜·수정메모) 앞에 삽입
         markdown = prependPageMeta(page, markdown);
 
         Path localPath = Path.of(config.getProjectOutputDir(), "wiki", wikiPath);
@@ -240,6 +245,9 @@ public class WikiMigrationService {
         if (page.getUpdatedOn() != null && !page.getUpdatedOn().isBlank())
             parts.add("수정일: " + dateOnly(page.getUpdatedOn()));
 
+        if (page.getComments() != null && !page.getComments().isBlank())
+            parts.add("수정 메모: " + page.getComments());
+
         if (!parts.isEmpty()) {
             sb.append("<small>")
               .append(String.join(" &nbsp;·&nbsp; ", parts))
@@ -248,6 +256,21 @@ public class WikiMigrationService {
 
         sb.append("---\n\n");
         sb.append(body);
+        return sb.toString();
+    }
+
+    private static String appendAttachmentList(String markdown,
+                                               List<RedmineAttachment> attachments,
+                                               Map<String, String> attNameMapping,
+                                               String attachBasePath) {
+        StringBuilder sb = new StringBuilder(markdown);
+        if (!markdown.endsWith("\n")) sb.append('\n');
+        sb.append("\n## 첨부 파일\n\n");
+        for (RedmineAttachment att : attachments) {
+            String storedName = attNameMapping.getOrDefault(att.getFilename(), att.getFilename());
+            sb.append("- [").append(att.getFilename()).append("](")
+              .append(attachBasePath).append(storedName).append(")\n");
+        }
         return sb.toString();
     }
 

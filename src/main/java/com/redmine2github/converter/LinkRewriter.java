@@ -141,8 +141,9 @@ public class LinkRewriter {
         return result;
     }
 
-    /** 소문자 변환 + 연속 공백을 단일 공백으로 + 트림. */
+    /** 소문자 변환 + 언더스코어→공백 + 연속 공백을 단일 공백으로 + 트림.
+     *  Redmine 제목은 '_'로 저장되지만 [[링크]] 텍스트는 공백으로 쓰이므로 동일하게 처리한다. */
     private static String normalizeKey(String title) {
-        return title.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+        return title.replace('_', ' ').toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
     }
 }
