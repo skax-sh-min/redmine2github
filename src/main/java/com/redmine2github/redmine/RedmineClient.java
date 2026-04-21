@@ -450,7 +450,9 @@ public class RedmineClient {
             if (!res.isSuccessful()) {
                 throw new IOException("첨부파일 다운로드 실패 [" + res.code() + "]: " + att.getContentUrl());
             }
-            Files.write(dest, res.body().bytes());
+            var body = res.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + att.getContentUrl());
+            Files.write(dest, body.bytes());
             log.info("첨부파일 저장: {}", dest);
         }
         return dest;
@@ -517,7 +519,9 @@ public class RedmineClient {
             if (!res.isSuccessful()) {
                 throw new IOException("외부 파일 다운로드 실패 [" + res.code() + "]: " + url);
             }
-            Files.write(destFile, res.body().bytes());
+            var body = res.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + url);
+            Files.write(destFile, body.bytes());
             log.info("외부 파일 저장: {}", destFile);
         }
     }
@@ -551,7 +555,9 @@ public class RedmineClient {
             if (!response.isSuccessful()) {
                 throw new RuntimeException("Redmine API 오류 [" + response.code() + "]: " + url);
             }
-            return mapper.readTree(response.body().string());
+            var body = response.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + url);
+            return mapper.readTree(body.string());
         } catch (IOException e) {
             throw new RuntimeException("Redmine API 호출 실패: " + url, e);
         }
