@@ -17,13 +17,14 @@ public class TextileConverter {
 
     private static final Logger log = LoggerFactory.getLogger(TextileConverter.class);
 
-    private static final Pattern BOLD          = Pattern.compile("\\*(.+?)\\*");
+    // [^*\r\n]+ : 종결자(*)와 줄바꿈을 제외 → 인라인 범위 밖으로 역추적 불가 (ReDoS 방지)
+    private static final Pattern BOLD          = Pattern.compile("\\*([^*\\r\\n]+)\\*");
     // Unicode word-boundary: (?<!\w) / (?!\w) 로 ASCII·한글 등 단어 문자 직후의 오탐 방지
     private static final Pattern ITALIC        = Pattern.compile(
-            "(?<![\\w_])_(.+?)_(?![\\w_])", Pattern.UNICODE_CHARACTER_CLASS);
+            "(?<![\\w_])_([^_\\r\\n]+)_(?![\\w_])", Pattern.UNICODE_CHARACTER_CLASS);
     // "- " (목록 마커) 또는 " - " (단어 구분 하이픈) 오탐 방지: - 바로 뒤가 공백이면 취소선 아님
     private static final Pattern STRIKETHROUGH = Pattern.compile(
-            "(?<!\\w)-(?!\\s)(.+?)-(?!\\w)", Pattern.UNICODE_CHARACTER_CLASS);
+            "(?<!\\w)-(?!\\s)([^-\\r\\n]+)-(?!\\w)", Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern H1            = Pattern.compile("(?m)^h1\\.\\s+(.+)$");
     private static final Pattern H2            = Pattern.compile("(?m)^h2\\.\\s+(.+)$");
     private static final Pattern H3            = Pattern.compile("(?m)^h3\\.\\s+(.+)$");
@@ -182,7 +183,7 @@ public class TextileConverter {
                 int j = i;
                 int nextTableIdx = -1;
                 boolean hitSectionDivider = false;
-                while (j < lines.length && j < i + 20) {
+                while (j < lines.length) {
                     String raw = lines[j];
                     String s = stripHeadingPrefixIfTable(raw);
                     if (!s.trim().isEmpty() && s.trim().startsWith("|") && !isGfmSeparatorRow(s)) {

@@ -90,22 +90,23 @@ public class GitHubFileUploader {
             UsernamePasswordCredentialsProvider creds =
                 new UsernamePasswordCredentialsProvider(config.getGithubToken(), "");
 
-            Git git = tmpDir.exists()
-                ? Git.open(tmpDir)
-                : Git.cloneRepository()
-                      .setURI("https://github.com/" + config.getGithubRepo() + ".git")
-                      .setDirectory(tmpDir)
-                      .setDepth(1)
-                      .setCredentialsProvider(creds)
-                      .call();
+            try (Git git = tmpDir.exists()
+                    ? Git.open(tmpDir)
+                    : Git.cloneRepository()
+                          .setURI("https://github.com/" + config.getGithubRepo() + ".git")
+                          .setDirectory(tmpDir)
+                          .setDepth(1)
+                          .setCredentialsProvider(creds)
+                          .call()) {
 
-            Path dest = tmpDir.toPath().resolve(repoPath);
-            Files.createDirectories(dest.getParent());
-            Files.copy(localFile, dest, StandardCopyOption.REPLACE_EXISTING);
+                Path dest = tmpDir.toPath().resolve(repoPath);
+                Files.createDirectories(dest.getParent());
+                Files.copy(localFile, dest, StandardCopyOption.REPLACE_EXISTING);
 
-            git.add().addFilepattern(repoPath).call();
-            git.commit().setMessage(commitMessage).call();
-            git.push().setCredentialsProvider(creds).call();
+                git.add().addFilepattern(repoPath).call();
+                git.commit().setMessage(commitMessage).call();
+                git.push().setCredentialsProvider(creds).call();
+            }
 
             log.info("[JGit] 업로드: {}", repoPath);
         } catch (Exception e) {

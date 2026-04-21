@@ -388,6 +388,8 @@ public class WikiMigrationService {
 
     /** 페이지 제목을 파일시스템 안전 슬러그로 변환한다. */
     private static String slugify(String title) {
-        return title.replace(" ", "-");
+        // Windows 파일시스템 불허 문자(\ : * ? " < > |)를 제거한 뒤 공백을 하이픈으로 치환
+        return title.replaceAll("[\\\\:*?\"<>|]", "")
+                    .replace(" ", "-");
     }
 }

@@ -50,7 +50,11 @@ public class CacheManager {
         Path file = cacheDir.resolve(key + ".json");
         if (!Files.exists(file)) return Optional.empty();
         try {
-            ArrayNode node = (ArrayNode) mapper.readTree(file.toFile());
+            JsonNode parsed = mapper.readTree(file.toFile());
+            if (!(parsed instanceof ArrayNode node)) {
+                log.warn("캐시 파일이 배열 형식이 아닙니다 — 재수집합니다 [{}]: {}", key, file);
+                return Optional.empty();
+            }
             log.info("캐시 로드: {} ({}건) ← {}", key, node.size(), file);
             return Optional.of(node);
         } catch (IOException e) {

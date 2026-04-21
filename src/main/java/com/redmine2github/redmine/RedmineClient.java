@@ -125,26 +125,17 @@ public class RedmineClient {
             }
         }
 
+        // 하위 프로젝트 이슈 제외 (프로젝트별 중복 방지)
+        List<JsonNode> nodes = fetchAllPages(
+                baseUrl + "/issues.json?project_id=" + project
+                        + "&subproject_id=!*&status_id=*&include=journals,attachments",
+                "issues");
         ArrayNode rawArray = mapper.createArrayNode();
         List<RedmineIssue> issues = new ArrayList<>();
-        int offset = 0;
-        while (true) {
-            String url = baseUrl + "/issues.json?project_id=" + project
-                    + "&subproject_id=!*"  // 하위 프로젝트 이슈 제외 (프로젝트별 중복 방지)
-                    + "&status_id=*&include=journals,attachments&limit=" + PAGE_SIZE + "&offset=" + offset;
-            JsonNode root = get(url);
-            JsonNode arr  = root.path("issues");
-            if (arr.isEmpty()) break;
-            int pageSize = arr.size();
-            for (JsonNode node : arr) {
-                rawArray.add(node);
-                issues.add(RedmineIssue.from(node));
-            }
-            offset += pageSize;
-            int total = root.path("total_count").asInt();
-            if (offset >= total) break;
+        for (JsonNode node : nodes) {
+            rawArray.add(node);
+            issues.add(RedmineIssue.from(node));
         }
-
         if (cache != null) cache.saveArray("issues", rawArray);
         return issues;
     }
@@ -184,35 +175,24 @@ public class RedmineClient {
             }
         }
 
+        List<JsonNode> nodes;
+        try {
+            nodes = fetchAllPages(baseUrl + "/time_entries.json?project_id=" + project, "time_entries");
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("[403]")) {
+                log.warn("작업 내역 조회 권한 없음 (403) — time entries 스킵 (데이터 누락됨). " +
+                         "Redmine 관리자에게 'Log time' 권한을 요청하거나 --only 옵션으로 제외하세요.");
+                log.warn("[데이터 누락] time_entries: 403 Forbidden — 마이그레이션 결과에 작업 내역이 포함되지 않습니다.");
+                return Collections.emptyList();
+            }
+            throw e;
+        }
         ArrayNode rawArray = mapper.createArrayNode();
         List<RedmineTimeEntry> entries = new ArrayList<>();
-        int offset = 0;
-        while (true) {
-            String url = baseUrl + "/time_entries.json?project_id=" + project
-                    + "&limit=" + PAGE_SIZE + "&offset=" + offset;
-            JsonNode root;
-            try {
-                root = get(url);
-            } catch (RuntimeException e) {
-                if (e.getMessage() != null && e.getMessage().contains("[403]")) {
-                    log.warn("작업 내역 조회 권한 없음 (403) — time entries 스킵. " +
-                             "Redmine 관리자에게 'Log time' 권한을 요청하거나 .env에서 --only 옵션으로 제외하세요.");
-                    return Collections.emptyList();
-                }
-                throw e;
-            }
-            JsonNode arr  = root.path("time_entries");
-            if (arr.isEmpty()) break;
-            int pageSize = arr.size();
-            for (JsonNode node : arr) {
-                rawArray.add(node);
-                entries.add(RedmineTimeEntry.from(node));
-            }
-            offset += pageSize;
-            int total = root.path("total_count").asInt();
-            if (offset >= total) break;
+        for (JsonNode node : nodes) {
+            rawArray.add(node);
+            entries.add(RedmineTimeEntry.from(node));
         }
-
         if (cache != null) cache.saveArray("time_entries", rawArray);
         return entries;
     }
@@ -222,17 +202,8 @@ public class RedmineClient {
     /** 접근 가능한 전체 프로젝트 목록을 페이지네이션하여 수집한다. */
     public List<RedmineProject> fetchAllProjects() {
         List<RedmineProject> projects = new ArrayList<>();
-        int offset = 0;
-        while (true) {
-            String url = baseUrl + "/projects.json?limit=" + PAGE_SIZE + "&offset=" + offset;
-            JsonNode root = get(url);
-            JsonNode arr  = root.path("projects");
-            if (arr.isEmpty()) break;
-            int pageSize = arr.size();
-            for (JsonNode node : arr) projects.add(RedmineProject.from(node));
-            offset += pageSize;
-            int total = root.path("total_count").asInt();
-            if (offset >= total) break;
+        for (JsonNode node : fetchAllPages(baseUrl + "/projects.json", "projects")) {
+            projects.add(RedmineProject.from(node));
         }
         return projects;
     }
@@ -351,7 +322,8 @@ public class RedmineClient {
         } catch (RuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("[403]")) {
                 log.warn("/users.json 접근 권한 없음 (403) — Redmine 관리자 권한이 필요합니다. " +
-                         "프로젝트 구성원 목록으로 대체합니다.");
+                         "프로젝트 구성원 목록으로 대체합니다 (login 필드 누락 주의).");
+                log.warn("[데이터 누락] users: 403 Forbidden — user-mapping.yml 생성 시 login 대신 표시명이 사용됩니다.");
                 return fetchMemberUsers();
             }
             throw e;
@@ -380,20 +352,9 @@ public class RedmineClient {
         }
 
         List<RedmineUser> list = new ArrayList<>();
-        int offset = 0;
-        while (true) {
-            String url = baseUrl + "/projects/" + project + "/memberships.json"
-                    + "?limit=" + PAGE_SIZE + "&offset=" + offset;
-            JsonNode root;
-            try {
-                root = get(url);
-            } catch (RuntimeException e) {
-                log.warn("프로젝트 구성원 목록 조회 실패: {}", e.getMessage());
-                break;
-            }
-            JsonNode arr = root.path("memberships");
-            if (arr.isEmpty()) break;
-            for (JsonNode node : arr) {
+        try {
+            for (JsonNode node : fetchAllPages(
+                    baseUrl + "/projects/" + project + "/memberships.json", "memberships")) {
                 // group 멤버십(user 필드 없음)은 건너뜀
                 JsonNode userNode = node.path("user");
                 if (userNode.isMissingNode()) continue;
@@ -402,9 +363,8 @@ public class RedmineClient {
                 // login이 없으므로 display name을 임시 key로 사용
                 list.add(new RedmineUser(id, name, "", ""));
             }
-            offset += arr.size();
-            int total = root.path("total_count").asInt(arr.size());
-            if (offset >= total) break;
+        } catch (RuntimeException e) {
+            log.warn("프로젝트 구성원 목록 조회 실패: {}", e.getMessage());
         }
         return list;
     }
@@ -450,7 +410,9 @@ public class RedmineClient {
             if (!res.isSuccessful()) {
                 throw new IOException("첨부파일 다운로드 실패 [" + res.code() + "]: " + att.getContentUrl());
             }
-            Files.write(dest, res.body().bytes());
+            var body = res.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + att.getContentUrl());
+            Files.write(dest, body.bytes());
             log.info("첨부파일 저장: {}", dest);
         }
         return dest;
@@ -517,7 +479,9 @@ public class RedmineClient {
             if (!res.isSuccessful()) {
                 throw new IOException("외부 파일 다운로드 실패 [" + res.code() + "]: " + url);
             }
-            Files.write(destFile, res.body().bytes());
+            var body = res.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + url);
+            Files.write(destFile, body.bytes());
             log.info("외부 파일 저장: {}", destFile);
         }
     }
@@ -533,6 +497,26 @@ public class RedmineClient {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /**
+     * offset/total_count 페이지네이션으로 전체 항목을 수집한다.
+     * total_count가 없으면 빈 페이지가 올 때까지 계속 요청한다.
+     */
+    private List<JsonNode> fetchAllPages(String basePageUrl, String arrayField) {
+        List<JsonNode> result = new ArrayList<>();
+        int offset = 0;
+        String connector = basePageUrl.contains("?") ? "&" : "?";
+        while (true) {
+            JsonNode root = get(basePageUrl + connector + "limit=" + PAGE_SIZE + "&offset=" + offset);
+            JsonNode arr = root.path(arrayField);
+            if (arr.isEmpty()) break;
+            for (JsonNode node : arr) result.add(node);
+            offset += arr.size();
+            int total = root.path("total_count").asInt(-1);
+            if (total >= 0 && offset >= total) break;
+        }
+        return result;
     }
 
     private JsonNode get(String url) {
@@ -551,7 +535,9 @@ public class RedmineClient {
             if (!response.isSuccessful()) {
                 throw new RuntimeException("Redmine API 오류 [" + response.code() + "]: " + url);
             }
-            return mapper.readTree(response.body().string());
+            var body = response.body();
+            if (body == null) throw new IOException("응답 본문이 없습니다: " + url);
+            return mapper.readTree(body.string());
         } catch (IOException e) {
             throw new RuntimeException("Redmine API 호출 실패: " + url, e);
         }
