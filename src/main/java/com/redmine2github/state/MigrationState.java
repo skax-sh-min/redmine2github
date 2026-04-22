@@ -30,7 +30,9 @@ public class MigrationState {
     private Set<Integer> completedIssueIds    = new HashSet<>();
     private Set<Integer> failedIssueIds       = new HashSet<>();
     /** upload 단계: 업로드 완료된 issue MD 파일 경로 (예: issues/123.md) */
-    private Set<String>  completedIssueMdPaths = new HashSet<>();
+    private Set<String>  completedIssueMdPaths    = new HashSet<>();
+    /** upload 단계: 업로드 완료된 첨부파일 경로 (예: project/attachments/image.png) */
+    private Set<String>  completedAttachmentPaths = new HashSet<>();
     private boolean issuesMdIndexDone          = false;
     private boolean timeEntriesDone            = false;
     private boolean labelsDone                 = false;
@@ -65,6 +67,9 @@ public class MigrationState {
 
     public boolean isIssueMdDone(String path)        { return completedIssueMdPaths.contains(path); }
     public void markIssueMdDone(String path)         { completedIssueMdPaths.add(path); }
+
+    public boolean isAttachmentDone(String path)     { return completedAttachmentPaths.contains(path); }
+    public void markAttachmentDone(String path)      { completedAttachmentPaths.add(path); }
 
     public boolean isIssuesMdIndexDone()             { return issuesMdIndexDone; }
     public void markIssuesMdIndexDone()              { this.issuesMdIndexDone = true; }
@@ -103,8 +108,11 @@ public class MigrationState {
 
     public void setFailedIssueIds(Set<Integer> s)          { failedIssueIds = s; }
 
-    public Set<String>  getCompletedIssueMdPaths()         { return completedIssueMdPaths; }
-    public void setCompletedIssueMdPaths(Set<String> s)    { completedIssueMdPaths = s; }
+    public Set<String>  getCompletedIssueMdPaths()              { return completedIssueMdPaths; }
+    public void setCompletedIssueMdPaths(Set<String> s)         { completedIssueMdPaths = s; }
+
+    public Set<String>  getCompletedAttachmentPaths()           { return completedAttachmentPaths; }
+    public void setCompletedAttachmentPaths(Set<String> s)      { completedAttachmentPaths = s; }
 
     public boolean getIssuesMdIndexDone()                  { return issuesMdIndexDone; }
     public void setIssuesMdIndexDone(boolean b)            { issuesMdIndexDone = b; }

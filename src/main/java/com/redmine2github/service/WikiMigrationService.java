@@ -341,8 +341,14 @@ public class WikiMigrationService {
                 stream.filter(Files::isRegularFile)
                         .forEach(f -> {
                             String rp = projectSlug + "/attachments/" + attachDir.relativize(f).toString().replace('\\', '/');
+                            if (!retryFailed && state.isAttachmentDone(rp)) {
+                                log.debug("첨부파일 스킵 (완료): {}", rp);
+                                return;
+                            }
                             try {
                                 fileUploader.uploadFile(f, rp, "migrate: " + rp);
+                                state.markAttachmentDone(rp);
+                                stateMgr.save();
                                 log.info("첨부파일 업로드: {}", rp);
                             } catch (Exception e) {
                                 log.warn("첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
@@ -360,8 +366,14 @@ public class WikiMigrationService {
                 stream.filter(Files::isRegularFile)
                         .forEach(f -> {
                             String rp = projectSlug + "/attachments-ext/" + attachExtDir.relativize(f).toString().replace('\\', '/');
+                            if (!retryFailed && state.isAttachmentDone(rp)) {
+                                log.debug("외부 첨부파일 스킵 (완료): {}", rp);
+                                return;
+                            }
                             try {
                                 fileUploader.uploadFile(f, rp, "migrate: " + rp);
+                                state.markAttachmentDone(rp);
+                                stateMgr.save();
                                 log.info("외부 첨부파일 업로드: {}", rp);
                             } catch (Exception e) {
                                 log.warn("외부 첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
