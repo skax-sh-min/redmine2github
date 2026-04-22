@@ -172,7 +172,7 @@ public class WikiMigrationService {
             } catch (IOException e) {
                 log.warn("첨부파일 다운로드 실패 [name={}, url={}]: {}",
                         att.getFilename(), att.getContentUrl(), e.getMessage(), e);
-                attNameMapping.put(att.getFilename(), att.getFilename()); // 실패 시 원본명 유지
+                // 다운로드 실패 시 매핑에 추가하지 않음 — 존재하지 않는 파일로의 링크 방지
             }
         }
 
@@ -253,9 +253,9 @@ public class WikiMigrationService {
             sb.append("<small>")
               .append(String.join(" &nbsp;·&nbsp; ", parts))
               .append("</small>\n\n");
+            sb.append("---\n\n");
         }
 
-        sb.append("---\n\n");
         sb.append(body);
         return sb.toString();
     }
@@ -264,14 +264,18 @@ public class WikiMigrationService {
                                                List<RedmineAttachment> attachments,
                                                Map<String, String> attNameMapping,
                                                String attachBasePath) {
+        List<String> lines = new ArrayList<>();
+        for (RedmineAttachment att : attachments) {
+            String storedName = attNameMapping.get(att.getFilename());
+            if (storedName == null) continue; // 다운로드 실패 항목 제외
+            lines.add("- [" + att.getFilename() + "](" + attachBasePath + storedName + ")");
+        }
+        if (lines.isEmpty()) return markdown;
+
         StringBuilder sb = new StringBuilder(markdown);
         if (!markdown.endsWith("\n")) sb.append('\n');
         sb.append("\n## 첨부 파일\n\n");
-        for (RedmineAttachment att : attachments) {
-            String storedName = attNameMapping.getOrDefault(att.getFilename(), att.getFilename());
-            sb.append("- [").append(att.getFilename()).append("](")
-              .append(attachBasePath).append(storedName).append(")\n");
-        }
+        for (String line : lines) sb.append(line).append('\n');
         return sb.toString();
     }
 

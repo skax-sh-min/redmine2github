@@ -222,6 +222,7 @@ class MigrationE2ETest {
     @Test
     void wiki_fetch_attachmentImageLinked() throws Exception {
         // !image.png! 가 첨부파일 목록에 있을 때 경로 재작성 확인
+        String attachUrl = redmineServer.url("/attachments/1/diagram.png").toString();
         redmineServer.enqueue(new MockResponse()
             .setBody("{\"wiki_pages\":[{\"title\":\"Docs\"}]}")
             .addHeader("Content-Type", "application/json"));
@@ -229,7 +230,7 @@ class MigrationE2ETest {
             .setBody("{\"wiki_page\":{\"title\":\"Docs\","
                 + "\"text\":\"!diagram.png!\","
                 + "\"attachments\":[{\"id\":1,\"filename\":\"diagram.png\","
-                + "\"content_url\":\"http://localhost/attachments/1/diagram.png\"}]}}")
+                + "\"content_url\":\"" + attachUrl + "\"}]}}")
             .addHeader("Content-Type", "application/json"));
         // 첨부파일 다운로드 응답
         redmineServer.enqueue(new MockResponse()
