@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Issue 마이그레이션 서비스 — 2단계 구조.
@@ -160,8 +161,8 @@ public class IssueMigrationService {
     private void generateIssueIndex(Path issuesJsonDir, ObjectMapper mapper) {
         Path indexFile = Path.of(config.getProjectOutputDir(), "issues.md");
         List<LocalIssue> issues;
-        try {
-            issues = Files.list(issuesJsonDir)
+        try (Stream<Path> stream = Files.list(issuesJsonDir)) {
+            issues = stream
                     .filter(p -> p.getFileName().toString().matches("\\d+\\.json"))
                     .sorted(Comparator.comparingInt(
                             p -> Integer.parseInt(p.getFileName().toString().replace(".json", ""))))
@@ -289,8 +290,8 @@ public class IssueMigrationService {
 
         // Issues 업로드
         List<Path> issueFiles;
-        try {
-            issueFiles = Files.list(issuesJsonDir)
+        try (Stream<Path> stream = Files.list(issuesJsonDir)) {
+            issueFiles = stream
                     .filter(p -> p.getFileName().toString().matches("\\d+\\.json"))
                     .sorted(Comparator.comparingInt(
                             p -> Integer.parseInt(p.getFileName().toString().replace(".json", ""))))
@@ -371,8 +372,8 @@ public class IssueMigrationService {
         if (!Files.exists(issuesMdDir)) return;
 
         List<Path> mdFiles;
-        try {
-            mdFiles = Files.list(issuesMdDir)
+        try (Stream<Path> stream = Files.list(issuesMdDir)) {
+            mdFiles = stream
                     .filter(p -> p.getFileName().toString().matches("\\d+\\.md"))
                     .sorted(Comparator.comparingInt(
                             p -> Integer.parseInt(p.getFileName().toString().replace(".md", ""))))

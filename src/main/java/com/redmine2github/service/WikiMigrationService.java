@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Wiki 마이그레이션 서비스 — 2단계 구조.
@@ -297,8 +298,8 @@ public class WikiMigrationService {
         GitHubFileUploader fileUploader = new GitHubFileUploader(config, ghUploader);
 
         List<Path> mdFiles;
-        try {
-            mdFiles = Files.walk(wikiDir)
+        try (Stream<Path> stream = Files.walk(wikiDir)) {
+            mdFiles = stream
                     .filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".md"))
                     .toList();
@@ -336,9 +337,8 @@ public class WikiMigrationService {
         // 첨부파일 업로드
         Path attachDir = Path.of(config.getProjectOutputDir(), "attachments");
         if (Files.exists(attachDir)) {
-            try {
-                Files.walk(attachDir)
-                        .filter(Files::isRegularFile)
+            try (Stream<Path> stream = Files.walk(attachDir)) {
+                stream.filter(Files::isRegularFile)
                         .forEach(f -> {
                             String rp = projectSlug + "/attachments/" + attachDir.relativize(f).toString().replace('\\', '/');
                             try {
@@ -356,9 +356,8 @@ public class WikiMigrationService {
         // 외부 첨부파일(attachments-ext) 업로드
         Path attachExtDir = Path.of(config.getProjectOutputDir(), "attachments-ext");
         if (Files.exists(attachExtDir)) {
-            try {
-                Files.walk(attachExtDir)
-                        .filter(Files::isRegularFile)
+            try (Stream<Path> stream = Files.walk(attachExtDir)) {
+                stream.filter(Files::isRegularFile)
                         .forEach(f -> {
                             String rp = projectSlug + "/attachments-ext/" + attachExtDir.relativize(f).toString().replace('\\', '/');
                             try {

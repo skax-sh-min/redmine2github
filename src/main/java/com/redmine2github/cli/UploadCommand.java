@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Phase 2: 로컬 {@code output/}의 파일을 GitHub에 업로드한다.
@@ -115,8 +116,8 @@ public class UploadCommand implements Runnable {
         }
 
         List<Path> projectDirs;
-        try {
-            projectDirs = Files.list(outputRoot)
+        try (Stream<Path> stream = Files.list(outputRoot)) {
+            projectDirs = stream
                     .filter(Files::isDirectory)
                     .sorted()
                     .toList();
