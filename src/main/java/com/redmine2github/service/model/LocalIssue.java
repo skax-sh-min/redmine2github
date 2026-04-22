@@ -46,7 +46,7 @@ public class LocalIssue {
     public void setBody(String v)       { this.body = v; }
 
     public List<String> getLabels()            { return labels; }
-    public void setLabels(List<String> v)      { this.labels = v; }
+    public void setLabels(List<String> v)      { this.labels = v != null ? v : new ArrayList<>(); }
 
     public String getAuthor()           { return author; }
     public void setAuthor(String v)     { this.author = v; }
@@ -58,7 +58,7 @@ public class LocalIssue {
     public void setCreatedOn(String v)  { this.createdOn = v; }
 
     public List<String> getComments()          { return comments; }
-    public void setComments(List<String> v)    { this.comments = v; }
+    public void setComments(List<String> v)    { this.comments = v != null ? v : new ArrayList<>(); }
 
     public boolean isClosed()           { return closed; }
     public void setClosed(boolean v)    { this.closed = v; }
