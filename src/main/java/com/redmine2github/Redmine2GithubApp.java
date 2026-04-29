@@ -1,6 +1,5 @@
 package com.redmine2github;
 
-import com.redmine2github.cli.FetchAllProjectsCommand;
 import com.redmine2github.cli.FetchCommand;
 import com.redmine2github.cli.GenerateMappingCommand;
 import com.redmine2github.cli.MigrateAllCommand;
@@ -16,7 +15,6 @@ import java.nio.charset.StandardCharsets;
     description = "Redmine 프로젝트를 GitHub로 마이그레이션하는 CLI 도구",
     subcommands = {
         FetchCommand.class,
-        FetchAllProjectsCommand.class,
         UploadCommand.class,
         MigrateAllCommand.class,
         GenerateMappingCommand.class,
@@ -38,7 +36,6 @@ import java.nio.charset.StandardCharsets;
         "  redmine2github fetch --all             # 모든 프로젝트 수집",
         "  redmine2github fetch --all --only wiki # Wiki만",
         "  redmine2github fetch --all --skip foo,bar # 일부 제외",
-        "  redmine2github fetch-all               # fetch --all 별칭",
         "",
         "통합 실행 (단일 프로젝트):",
         "  redmine2github migrate",

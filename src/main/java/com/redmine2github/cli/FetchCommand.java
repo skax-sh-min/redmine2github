@@ -41,7 +41,6 @@ import java.util.List;
         "  redmine2github fetch --all                    # 접근 가능한 모든 프로젝트",
         "  redmine2github fetch --all --only wiki        # 모든 프로젝트, Wiki만",
         "  redmine2github fetch --all --skip foo,bar     # 일부 프로젝트 제외",
-        "  redmine2github fetch-all                      # fetch --all 의 별칭",
         "",
         "수집 결과 저장 위치:",
         "  단일/--project: output/            (REDMINE_PROJECT 기준)",

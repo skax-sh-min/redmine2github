@@ -169,7 +169,6 @@ redmine2github fetch --project my-project-id
 redmine2github fetch --all
 redmine2github fetch --all --only wiki
 redmine2github fetch --all --skip foo,bar
-redmine2github fetch-all                    # fetch --all 의 별칭
 
 # Phase 2: 로컬 output/ → GitHub
 redmine2github upload
