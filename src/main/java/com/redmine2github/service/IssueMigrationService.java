@@ -394,7 +394,7 @@ public class IssueMigrationService {
         GitHubFileUploader fileUploader = new GitHubFileUploader(config, gh);
         String slug = config.getProjectSlug();
 
-        // issues.md 인덱스 업로드
+        // issues.md 인덱스 업로드 (단일 파일 — API/JGit 모두 uploadFile 사용)
         if (Files.exists(issuesIndexFile)) {
             String repoPath = slug + "/issues.md";
             if (retryFailed || !state.isIssuesMdIndexDone()) {
@@ -431,26 +431,63 @@ public class IssueMigrationService {
                 ? failureLog.loadNonRetryableIds("issue-md-upload", "upload")
                 : Collections.emptySet();
 
-        for (Path mdFile : mdFiles) {
-            String repoPath = slug + "/issues/" + mdFile.getFileName();
-            if (!retryFailed && state.isIssueMdDone(repoPath)) {
-                mdProgress.itemSkipped(repoPath);
-                continue;
-            }
-            if (retryFailed && nonRetryableMdUpload.contains(repoPath)) {
-                mdProgress.itemSkipped(repoPath);
-                continue;
-            }
-            try {
-                fileUploader.uploadFile(mdFile, repoPath, "migrate: " + repoPath);
-                state.markIssueMdDone(repoPath);
-                stateMgr.save();
-                mdProgress.itemDone(repoPath);
+        if (fileUploader.isJGitMode()) {
+            // JGit 배치: N 파일 → 1 commit + 1 push
+            try (var session = fileUploader.beginJGitSession()) {
+                for (Path mdFile : mdFiles) {
+                    String repoPath = slug + "/issues/" + mdFile.getFileName();
+                    if (!retryFailed && state.isIssueMdDone(repoPath)) {
+                        mdProgress.itemSkipped(repoPath);
+                        continue;
+                    }
+                    if (retryFailed && nonRetryableMdUpload.contains(repoPath)) {
+                        mdProgress.itemSkipped(repoPath);
+                        continue;
+                    }
+                    try {
+                        session.stage(mdFile, repoPath);
+                    } catch (Exception e) {
+                        log.error("Issue MD 스테이징 실패 [{}]: {}", repoPath, e.getMessage(), e);
+                        mdProgress.itemFailed(repoPath, e.getMessage());
+                        report.addFailure("issue-md-upload", repoPath, e.getMessage());
+                        failureLog.append("issue-md-upload", repoPath, "upload", e.getMessage());
+                    }
+                }
+                if (session.hasStaged()) {
+                    session.commit("migrate: issue md files (" + session.getStagedCount() + " files)");
+                    session.push();
+                    for (String rp : session.getStagedPaths()) {
+                        state.markIssueMdDone(rp);
+                        mdProgress.itemDone(rp);
+                    }
+                    stateMgr.save();
+                }
             } catch (Exception e) {
-                log.error("Issue MD 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
-                mdProgress.itemFailed(repoPath, e.getMessage());
-                report.addFailure("issue-md-upload", repoPath, e.getMessage());
-                failureLog.append("issue-md-upload", repoPath, "upload", e.getMessage());
+                log.error("Issue MD JGit 배치 업로드 실패: {}", e.getMessage(), e);
+            }
+        } else {
+            // API 모드: 파일별 업로드
+            for (Path mdFile : mdFiles) {
+                String repoPath = slug + "/issues/" + mdFile.getFileName();
+                if (!retryFailed && state.isIssueMdDone(repoPath)) {
+                    mdProgress.itemSkipped(repoPath);
+                    continue;
+                }
+                if (retryFailed && nonRetryableMdUpload.contains(repoPath)) {
+                    mdProgress.itemSkipped(repoPath);
+                    continue;
+                }
+                try {
+                    fileUploader.uploadFile(mdFile, repoPath, "migrate: " + repoPath);
+                    state.markIssueMdDone(repoPath);
+                    stateMgr.save();
+                    mdProgress.itemDone(repoPath);
+                } catch (Exception e) {
+                    log.error("Issue MD 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
+                    mdProgress.itemFailed(repoPath, e.getMessage());
+                    report.addFailure("issue-md-upload", repoPath, e.getMessage());
+                    failureLog.append("issue-md-upload", repoPath, "upload", e.getMessage());
+                }
             }
         }
 

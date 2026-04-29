@@ -344,96 +344,105 @@ public class WikiMigrationService {
         }
 
         progress.start(mdFiles.size());
-        int processedSinceRateCheck = 0;
         String projectSlug = config.getProjectSlug();
 
         Set<String> nonRetryableWikiUpload = retryFailed
                 ? failureLog.loadNonRetryableIds("wiki-upload", "upload")
                 : Collections.emptySet();
 
-        for (Path mdFile : mdFiles) {
-            String repoPath = projectSlug + "/wiki/" + wikiDir.relativize(mdFile).toString().replace('\\', '/');
-            if (!retryFailed && state.isWikiPageDone(repoPath)) {
-                progress.itemSkipped(repoPath);
-                continue;
-            }
-            if (retryFailed && nonRetryableWikiUpload.contains(repoPath)) {
-                progress.itemSkipped(repoPath);
-                continue;
-            }
-            try {
-                fileUploader.uploadFile(mdFile, repoPath, "migrate: " + repoPath);
-                state.markWikiPageDone(repoPath);
-                stateMgr.save();
-                progress.itemDone(repoPath);
-            } catch (Exception e) {
-                log.error("Wiki 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
-                progress.itemFailed(repoPath, e.getMessage());
-                report.addFailure("wiki-upload", repoPath, e.getMessage());
-                failureLog.append("wiki-upload", repoPath, "upload", e.getMessage());
-            }
-
-            if (++processedSinceRateCheck >= 10) {
-                progress.reportRateLimit(ghUploader.getRateLimitRemaining());
-                processedSinceRateCheck = 0;
+        // ── Wiki .md 파일 업로드 ────────────────────────────────────────────
+        if (fileUploader.isJGitMode()) {
+            uploadWikiMdJGit(mdFiles, wikiDir, fileUploader, state, stateMgr, progress,
+                             projectSlug, retryFailed, nonRetryableWikiUpload);
+        } else {
+            int processedSinceRateCheck = 0;
+            for (Path mdFile : mdFiles) {
+                String repoPath = projectSlug + "/wiki/" + wikiDir.relativize(mdFile).toString().replace('\\', '/');
+                if (!retryFailed && state.isWikiPageDone(repoPath)) {
+                    progress.itemSkipped(repoPath);
+                    continue;
+                }
+                if (retryFailed && nonRetryableWikiUpload.contains(repoPath)) {
+                    progress.itemSkipped(repoPath);
+                    continue;
+                }
+                try {
+                    fileUploader.uploadFile(mdFile, repoPath, "migrate: " + repoPath);
+                    state.markWikiPageDone(repoPath);
+                    stateMgr.save();
+                    progress.itemDone(repoPath);
+                } catch (Exception e) {
+                    log.error("Wiki 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
+                    progress.itemFailed(repoPath, e.getMessage());
+                    report.addFailure("wiki-upload", repoPath, e.getMessage());
+                    failureLog.append("wiki-upload", repoPath, "upload", e.getMessage());
+                }
+                if (++processedSinceRateCheck >= 10) {
+                    progress.reportRateLimit(ghUploader.getRateLimitRemaining());
+                    processedSinceRateCheck = 0;
+                }
             }
         }
 
-        // 첨부파일 업로드
+        // ── 첨부파일 업로드 ─────────────────────────────────────────────────
         Set<String> nonRetryableAttach = retryFailed
                 ? failureLog.loadNonRetryableIds("attachment-upload", "upload")
                 : Collections.emptySet();
 
-        Path attachDir = Path.of(config.getProjectOutputDir(), "attachments");
-        if (Files.exists(attachDir)) {
-            try (Stream<Path> stream = Files.walk(attachDir)) {
-                stream.filter(Files::isRegularFile)
-                        .forEach(f -> {
-                            String rp = projectSlug + "/attachments/" + attachDir.relativize(f).toString().replace('\\', '/');
-                            if (!retryFailed && state.isAttachmentDone(rp)) {
-                                log.debug("첨부파일 스킵 (완료): {}", rp);
-                                return;
-                            }
-                            if (retryFailed && nonRetryableAttach.contains(rp)) return;
-                            try {
-                                fileUploader.uploadFile(f, rp, "migrate: " + rp);
-                                state.markAttachmentDone(rp);
-                                stateMgr.save();
-                                log.info("첨부파일 업로드: {}", rp);
-                            } catch (Exception e) {
-                                log.warn("첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
-                                failureLog.append("attachment-upload", rp, "upload", e.getMessage());
-                            }
-                        });
-            } catch (IOException e) {
-                log.error("첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
-            }
-        }
-
-        // 외부 첨부파일(attachments-ext) 업로드
+        Path attachDir    = Path.of(config.getProjectOutputDir(), "attachments");
         Path attachExtDir = Path.of(config.getProjectOutputDir(), "attachments-ext");
-        if (Files.exists(attachExtDir)) {
-            try (Stream<Path> stream = Files.walk(attachExtDir)) {
-                stream.filter(Files::isRegularFile)
-                        .forEach(f -> {
-                            String rp = projectSlug + "/attachments-ext/" + attachExtDir.relativize(f).toString().replace('\\', '/');
-                            if (!retryFailed && state.isAttachmentDone(rp)) {
-                                log.debug("외부 첨부파일 스킵 (완료): {}", rp);
-                                return;
-                            }
-                            if (retryFailed && nonRetryableAttach.contains(rp)) return;
-                            try {
-                                fileUploader.uploadFile(f, rp, "migrate: " + rp);
-                                state.markAttachmentDone(rp);
-                                stateMgr.save();
-                                log.info("외부 첨부파일 업로드: {}", rp);
-                            } catch (Exception e) {
-                                log.warn("외부 첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
-                                failureLog.append("attachment-upload", rp, "upload", e.getMessage());
-                            }
-                        });
-            } catch (IOException e) {
-                log.error("외부 첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
+
+        if (fileUploader.isJGitMode()) {
+            uploadAttachmentsJGit(attachDir, attachExtDir, fileUploader, state, stateMgr,
+                                   projectSlug, retryFailed, nonRetryableAttach);
+        } else {
+            if (Files.exists(attachDir)) {
+                List<Path> files;
+                try (Stream<Path> stream = Files.walk(attachDir)) {
+                    files = stream.filter(Files::isRegularFile).toList();
+                } catch (IOException e) {
+                    log.error("첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
+                    files = Collections.emptyList();
+                }
+                for (Path f : files) {
+                    String rp = projectSlug + "/attachments/"
+                            + attachDir.relativize(f).toString().replace('\\', '/');
+                    if (!retryFailed && state.isAttachmentDone(rp)) { log.debug("첨부파일 스킵 (완료): {}", rp); continue; }
+                    if (retryFailed && nonRetryableAttach.contains(rp)) continue;
+                    try {
+                        fileUploader.uploadFile(f, rp, "migrate: " + rp);
+                        state.markAttachmentDone(rp);
+                        stateMgr.save();
+                        log.info("첨부파일 업로드: {}", rp);
+                    } catch (Exception e) {
+                        log.warn("첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
+                        failureLog.append("attachment-upload", rp, "upload", e.getMessage());
+                    }
+                }
+            }
+            if (Files.exists(attachExtDir)) {
+                List<Path> files;
+                try (Stream<Path> stream = Files.walk(attachExtDir)) {
+                    files = stream.filter(Files::isRegularFile).toList();
+                } catch (IOException e) {
+                    log.error("외부 첨부파일 디렉터리 읽기 실패: {}", e.getMessage(), e);
+                    files = Collections.emptyList();
+                }
+                for (Path f : files) {
+                    String rp = projectSlug + "/attachments-ext/"
+                            + attachExtDir.relativize(f).toString().replace('\\', '/');
+                    if (!retryFailed && state.isAttachmentDone(rp)) { log.debug("외부 첨부파일 스킵 (완료): {}", rp); continue; }
+                    if (retryFailed && nonRetryableAttach.contains(rp)) continue;
+                    try {
+                        fileUploader.uploadFile(f, rp, "migrate: " + rp);
+                        state.markAttachmentDone(rp);
+                        stateMgr.save();
+                        log.info("외부 첨부파일 업로드: {}", rp);
+                    } catch (Exception e) {
+                        log.warn("외부 첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
+                        failureLog.append("attachment-upload", rp, "upload", e.getMessage());
+                    }
+                }
             }
         }
 
@@ -441,6 +450,93 @@ public class WikiMigrationService {
         progress.finish();
         report.recordSection(progress.getSection(), progress.getTotal(),
                 progress.getDone(), progress.getFailed(), progress.getSkipped());
+    }
+
+    // ── JGit 배치 헬퍼 ────────────────────────────────────────────────────────
+
+    private void uploadWikiMdJGit(List<Path> mdFiles, Path wikiDir,
+                                   GitHubFileUploader fileUploader,
+                                   MigrationState state, MigrationStateManager stateMgr,
+                                   ProgressReporter progress, String projectSlug,
+                                   boolean retryFailed, Set<String> nonRetryable) {
+        try (var session = fileUploader.beginJGitSession()) {
+            for (Path mdFile : mdFiles) {
+                String repoPath = projectSlug + "/wiki/"
+                        + wikiDir.relativize(mdFile).toString().replace('\\', '/');
+                if (!retryFailed && state.isWikiPageDone(repoPath)) {
+                    progress.itemSkipped(repoPath);
+                    continue;
+                }
+                if (retryFailed && nonRetryable.contains(repoPath)) {
+                    progress.itemSkipped(repoPath);
+                    continue;
+                }
+                try {
+                    session.stage(mdFile, repoPath);
+                } catch (Exception e) {
+                    log.error("Wiki 스테이징 실패 [{}]: {}", repoPath, e.getMessage(), e);
+                    progress.itemFailed(repoPath, e.getMessage());
+                    report.addFailure("wiki-upload", repoPath, e.getMessage());
+                    failureLog.append("wiki-upload", repoPath, "upload", e.getMessage());
+                }
+            }
+            if (session.hasStaged()) {
+                session.commit("migrate: wiki pages (" + session.getStagedCount() + " files)");
+                session.push();
+                for (String rp : session.getStagedPaths()) {
+                    state.markWikiPageDone(rp);
+                    progress.itemDone(rp);
+                }
+                stateMgr.save();
+            }
+        } catch (Exception e) {
+            log.error("Wiki JGit 배치 업로드 실패: {}", e.getMessage(), e);
+        }
+    }
+
+    private void uploadAttachmentsJGit(Path attachDir, Path attachExtDir,
+                                        GitHubFileUploader fileUploader,
+                                        MigrationState state, MigrationStateManager stateMgr,
+                                        String projectSlug,
+                                        boolean retryFailed, Set<String> nonRetryable) {
+        try (var session = fileUploader.beginJGitSession()) {
+            stageAttachDir(session, attachDir,    projectSlug + "/attachments/",     state, retryFailed, nonRetryable);
+            stageAttachDir(session, attachExtDir, projectSlug + "/attachments-ext/", state, retryFailed, nonRetryable);
+            if (session.hasStaged()) {
+                session.commit("migrate: attachments (" + session.getStagedCount() + " files)");
+                session.push();
+                for (String rp : session.getStagedPaths()) {
+                    state.markAttachmentDone(rp);
+                }
+                stateMgr.save();
+            }
+        } catch (Exception e) {
+            log.error("Attachment JGit 배치 업로드 실패: {}", e.getMessage(), e);
+        }
+    }
+
+    private void stageAttachDir(GitHubFileUploader.JGitSession session, Path dir,
+                                 String repoPrefix, MigrationState state,
+                                 boolean retryFailed, Set<String> nonRetryable) {
+        if (!Files.exists(dir)) return;
+        List<Path> files;
+        try (Stream<Path> stream = Files.walk(dir)) {
+            files = stream.filter(Files::isRegularFile).toList();
+        } catch (IOException e) {
+            log.error("첨부파일 디렉터리 읽기 실패 [{}]: {}", dir, e.getMessage(), e);
+            return;
+        }
+        for (Path f : files) {
+            String rp = repoPrefix + dir.relativize(f).toString().replace('\\', '/');
+            if (!retryFailed && state.isAttachmentDone(rp)) { log.debug("첨부파일 스킵 (완료): {}", rp); continue; }
+            if (retryFailed && nonRetryable.contains(rp)) continue;
+            try {
+                session.stage(f, rp);
+            } catch (Exception e) {
+                log.warn("첨부파일 스테이징 실패 [{}]: {}", rp, e.getMessage());
+                failureLog.append("attachment-upload", rp, "upload", e.getMessage());
+            }
+        }
     }
 
     // ── 전체 파이프라인 ────────────────────────────────────────────────────────
