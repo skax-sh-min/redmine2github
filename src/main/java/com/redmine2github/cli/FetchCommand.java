@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -181,9 +182,11 @@ public class FetchCommand implements Runnable {
     // ── 공통 헬퍼 ─────────────────────────────────────────────
 
     private void runProject(AppConfig config, boolean runWiki, boolean runIssues, boolean runTime) {
-        if (runWiki)   new WikiMigrationService(config).fetch(resume, retryFailed);
-        if (runIssues) new IssueMigrationService(config).fetch(resume, retryFailed);
-        if (runTime)   new TimeEntryMigrationService(config).fetch(resume, retryFailed);
+        MigrationReport report = new MigrationReport(config.getProjectSlug());
+        if (runWiki)   new WikiMigrationService(config, report).fetch(resume, retryFailed);
+        if (runIssues) new IssueMigrationService(config, report).fetch(resume, retryFailed);
+        if (runTime)   new TimeEntryMigrationService(config, report).fetch(resume, retryFailed);
+        report.writeToFile(Path.of(config.getProjectOutputDir()));
     }
 
     private void printSingleDone() {

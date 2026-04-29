@@ -65,6 +65,14 @@ public class ProgressReporter {
                 section, done, skipped, failed, total));
     }
 
+    // ── 통계 조회 ─────────────────────────────────────────────────────────
+
+    public String getSection() { return section; }
+    public int    getTotal()   { return total; }
+    public int    getDone()    { return done; }
+    public int    getFailed()  { return failed; }
+    public int    getSkipped() { return skipped; }
+
     // ── 내부 ──────────────────────────────────────────────────────────────
 
     private void printProgress(String icon, String name, String extra) {

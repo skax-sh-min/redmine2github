@@ -1,6 +1,7 @@
 package com.redmine2github.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.github.GitHubFileUploader;
@@ -48,11 +49,17 @@ public class IssueMigrationService {
     private static final Logger log = LoggerFactory.getLogger(IssueMigrationService.class);
 
     private final AppConfig config;
+    private final MigrationReport report;
     private final IssueConverter issueConverter;
 
     public IssueMigrationService(AppConfig config) {
+        this(config, new MigrationReport(config.getProjectSlug()));
+    }
+
+    public IssueMigrationService(AppConfig config, MigrationReport report) {
         this.config = config;
-        this.issueConverter = new IssueConverter(config);
+        this.report = report;
+        this.issueConverter = new IssueConverter(config, report);
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -133,10 +140,13 @@ public class IssueMigrationService {
             } catch (Exception e) {
                 log.error("Issue 수집 실패 [#{}]: {}", basicIssue.getId(), e.getMessage(), e);
                 progress.itemFailed("#" + basicIssue.getId(), e.getMessage());
+                report.addFailure("issue", "#" + basicIssue.getId(), e.getMessage());
             }
         }
 
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
 
         // 전체 이슈 목록 인덱스 파일 생성
         generateIssueIndex(issuesJsonDir, mapper);
@@ -328,6 +338,7 @@ public class IssueMigrationService {
                 state.markIssueFailed(local.getRedmineId());
                 stateMgr.save();
                 progress.itemFailed("#" + local.getRedmineId(), e.getMessage());
+                report.addFailure("issue-upload", "#" + local.getRedmineId(), e.getMessage());
             }
 
             if (++processedSinceRateCheck >= 20) {
@@ -338,6 +349,8 @@ public class IssueMigrationService {
 
         progress.reportRateLimit(gh.getRateLimitRemaining());
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
     }
 
     private void uploadIssueMdFiles(MigrationState state, MigrationStateManager stateMgr,
@@ -400,10 +413,13 @@ public class IssueMigrationService {
             } catch (Exception e) {
                 log.error("Issue MD 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
                 mdProgress.itemFailed(repoPath, e.getMessage());
+                report.addFailure("issue-md-upload", repoPath, e.getMessage());
             }
         }
 
         mdProgress.finish();
+        report.recordSection(mdProgress.getSection(), mdProgress.getTotal(),
+                mdProgress.getDone(), mdProgress.getFailed(), mdProgress.getSkipped());
     }
 
     private void createLabelsFromFile(Path issuesDir, GitHubUploader gh, ObjectMapper mapper) {

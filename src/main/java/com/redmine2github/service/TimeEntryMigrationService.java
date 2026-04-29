@@ -1,5 +1,6 @@
 package com.redmine2github.service;
 
+import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.github.GitHubFileUploader;
@@ -35,9 +36,15 @@ public class TimeEntryMigrationService {
     private static final String REPO_PATH  = "_migration/time_entries.csv";
 
     private final AppConfig config;
+    private final MigrationReport report;
 
     public TimeEntryMigrationService(AppConfig config) {
+        this(config, new MigrationReport(config.getProjectSlug()));
+    }
+
+    public TimeEntryMigrationService(AppConfig config, MigrationReport report) {
         this.config = config;
+        this.report = report;
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -60,6 +67,8 @@ public class TimeEntryMigrationService {
         List<RedmineTimeEntry> entries = redmine.fetchAllTimeEntries();
         if (entries.isEmpty()) {
             log.info("작업 내역 없음 (권한 부족 또는 데이터 없음) — 스킵");
+            report.addDataMissing(
+                    "TimeEntries: 0건 — 접근 권한 없음(403)이거나 작업 내역이 없습니다. migration.log 를 확인하세요.");
             state.markTimeEntriesFetched();
             stateMgr.save();
             return;
@@ -73,6 +82,7 @@ public class TimeEntryMigrationService {
         } catch (IOException e) {
             log.error("CSV 저장 실패: {}", e.getMessage(), e);
             progress.itemFailed("CSV 저장", e.getMessage());
+            report.addFailure("time-entry", "CSV", e.getMessage());
             return;
         }
 
@@ -81,6 +91,8 @@ public class TimeEntryMigrationService {
         stateMgr.save();
         log.info("작업 내역 CSV 로컬 저장 완료: {}", csvPath);
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
     }
 
     // ── Phase 2: 로컬 → GitHub ────────────────────────────────────────────────
@@ -121,9 +133,12 @@ public class TimeEntryMigrationService {
         } catch (Exception e) {
             log.error("Time Entries CSV 업로드 실패: {}", e.getMessage(), e);
             progress.itemFailed("time_entries.csv", e.getMessage());
+            report.addFailure("time-entry-upload", "time_entries.csv", e.getMessage());
         }
 
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
     }
 
     // ── 전체 파이프라인 ────────────────────────────────────────────────────────

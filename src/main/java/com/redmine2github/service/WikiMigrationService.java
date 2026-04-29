@@ -1,5 +1,6 @@
 package com.redmine2github.service;
 
+import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.converter.AttachmentPathRewriter;
@@ -51,13 +52,19 @@ public class WikiMigrationService {
     private static final Logger log = LoggerFactory.getLogger(WikiMigrationService.class);
 
     private final AppConfig config;
+    private final MigrationReport report;
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
     private final RedmineUrlRewriter redmineUrlRewriter;
 
     public WikiMigrationService(AppConfig config) {
+        this(config, new MigrationReport(config.getProjectSlug()));
+    }
+
+    public WikiMigrationService(AppConfig config, MigrationReport report) {
         this.config = config;
+        this.report = report;
         this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
@@ -82,6 +89,7 @@ public class WikiMigrationService {
             if (msg != null && msg.contains("[403]")) {
                 log.warn("[Wiki] 프로젝트 '{}' Wiki 접근 권한이 없습니다 — 건너뜁니다.", config.getProjectSlug());
                 System.out.println("  [Wiki] Wiki 접근 권한 없음 — 건너뜁니다.");
+                report.addDataMissing("Wiki: 403 Forbidden — wiki 페이지가 마이그레이션에 포함되지 않습니다.");
                 return;
             }
             throw e;
@@ -119,13 +127,20 @@ public class WikiMigrationService {
                 state.markWikiPageFetched(page.getTitle());
                 stateMgr.save();
                 progress.itemDone(page.getTitle());
+                // 첨부파일 통계 누적
+                for (RedmineAttachment att : page.getAttachments()) {
+                    report.addAttachmentStats(1, att.getFilesize());
+                }
             } catch (Exception e) {
                 log.error("Wiki 페이지 수집 실패 [{}]: {}", page.getTitle(), e.getMessage(), e);
                 progress.itemFailed(page.getTitle(), e.getMessage());
+                report.addFailure("wiki", page.getTitle(), e.getMessage());
             }
         }
 
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
     }
 
     /**
@@ -330,6 +345,7 @@ public class WikiMigrationService {
             } catch (Exception e) {
                 log.error("Wiki 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
                 progress.itemFailed(repoPath, e.getMessage());
+                report.addFailure("wiki-upload", repoPath, e.getMessage());
             }
 
             if (++processedSinceRateCheck >= 10) {
@@ -390,6 +406,8 @@ public class WikiMigrationService {
 
         progress.reportRateLimit(ghUploader.getRateLimitRemaining());
         progress.finish();
+        report.recordSection(progress.getSection(), progress.getTotal(),
+                progress.getDone(), progress.getFailed(), progress.getSkipped());
     }
 
     // ── 전체 파이프라인 ────────────────────────────────────────────────────────

@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.nio.file.Path;
+
 /**
  * fetch + upload를 순차 실행하는 통합 커맨드.
  *
@@ -58,19 +60,22 @@ public class MigrateAllCommand implements Runnable {
         boolean runIssues = only == null || "issues".equals(only);
         boolean runTime   = only == null || "time-entries".equals(only);
 
+        MigrationReport report = new MigrationReport(config.getProjectSlug());
+
         if (runWiki) {
             log.info("=== Wiki 마이그레이션 시작 ===");
-            new WikiMigrationService(config).run(resume, retryFailed);
+            new WikiMigrationService(config, report).run(resume, retryFailed);
         }
         if (runIssues) {
             log.info("=== Issues 마이그레이션 시작 ===");
-            new IssueMigrationService(config).run(resume, retryFailed);
+            new IssueMigrationService(config, report).run(resume, retryFailed);
         }
         if (runTime) {
             log.info("=== Time Entries 마이그레이션 시작 ===");
-            new TimeEntryMigrationService(config).run(resume, retryFailed);
+            new TimeEntryMigrationService(config, report).run(resume, retryFailed);
         }
 
+        report.writeToFile(Path.of(config.getProjectOutputDir()));
         log.info("=== 마이그레이션 완료 ===");
     }
 }

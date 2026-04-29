@@ -1,5 +1,6 @@
 package com.redmine2github.service;
 
+import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.converter.AttachmentPathRewriter;
 import com.redmine2github.converter.LinkRewriter;
@@ -33,13 +34,19 @@ class IssueConverter {
     private static final Logger log = LoggerFactory.getLogger(IssueConverter.class);
 
     private final AppConfig config;
+    private final MigrationReport report;
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
     private final RedmineUrlRewriter redmineUrlRewriter;
 
     IssueConverter(AppConfig config) {
+        this(config, new MigrationReport(config.getProjectSlug()));
+    }
+
+    IssueConverter(AppConfig config, MigrationReport report) {
         this.config = config;
+        this.report = report;
         this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
@@ -51,12 +58,22 @@ class IssueConverter {
 
         String body     = buildIssueBody(issue, userMap, attNameMapping, redmine, attachIssueDir);
         List<String> labels  = buildLabels(issue);
-        String author   = issue.getAuthorLogin() != null
-                        ? userMap.getOrDefault(issue.getAuthorLogin(), issue.getAuthorLogin())
-                        : "unknown";
-        String assignee = issue.getAssigneeLogin() != null
-                        ? userMap.getOrDefault(issue.getAssigneeLogin(), null)
+
+        String authorLogin = issue.getAuthorLogin();
+        String author = authorLogin != null
+                      ? userMap.getOrDefault(authorLogin, authorLogin)
+                      : "unknown";
+        if (authorLogin != null && !userMap.containsKey(authorLogin)) {
+            report.addUnmappedUser(authorLogin);
+        }
+
+        String assigneeLogin = issue.getAssigneeLogin();
+        String assignee = assigneeLogin != null
+                        ? userMap.getOrDefault(assigneeLogin, null)
                         : null;
+        if (assigneeLogin != null && !userMap.containsKey(assigneeLogin)) {
+            report.addUnmappedUser(assigneeLogin);
+        }
 
         List<String> comments = issue.getJournals().stream()
                 .filter(RedmineJournal::hasContent)
