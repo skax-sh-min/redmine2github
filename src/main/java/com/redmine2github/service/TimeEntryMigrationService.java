@@ -3,6 +3,7 @@ package com.redmine2github.service;
 import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.github.GitHubFileUploader;
 import com.redmine2github.github.GitHubUploader;
 import com.redmine2github.redmine.RedmineClient;
@@ -37,14 +38,21 @@ public class TimeEntryMigrationService {
 
     private final AppConfig config;
     private final MigrationReport report;
+    private final FailureLog failureLog;
 
     public TimeEntryMigrationService(AppConfig config) {
-        this(config, new MigrationReport(config.getProjectSlug()));
+        this(config, new MigrationReport(config.getProjectSlug()),
+             new FailureLog(Path.of(config.getProjectOutputDir())));
     }
 
     public TimeEntryMigrationService(AppConfig config, MigrationReport report) {
+        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())));
+    }
+
+    public TimeEntryMigrationService(AppConfig config, MigrationReport report, FailureLog failureLog) {
         this.config = config;
         this.report = report;
+        this.failureLog = failureLog;
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -83,6 +91,7 @@ public class TimeEntryMigrationService {
             log.error("CSV 저장 실패: {}", e.getMessage(), e);
             progress.itemFailed("CSV 저장", e.getMessage());
             report.addFailure("time-entry", "CSV", e.getMessage());
+            failureLog.append("time-entry", "CSV", "fetch", e.getMessage());
             return;
         }
 
@@ -134,6 +143,7 @@ public class TimeEntryMigrationService {
             log.error("Time Entries CSV 업로드 실패: {}", e.getMessage(), e);
             progress.itemFailed("time_entries.csv", e.getMessage());
             report.addFailure("time-entry-upload", "time_entries.csv", e.getMessage());
+            failureLog.append("time-entry-upload", "time_entries.csv", "upload", e.getMessage());
         }
 
         progress.finish();

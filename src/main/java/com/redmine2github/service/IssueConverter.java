@@ -2,6 +2,7 @@ package com.redmine2github.service;
 
 import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.converter.AttachmentPathRewriter;
 import com.redmine2github.converter.LinkRewriter;
 import com.redmine2github.converter.RedmineUrlRewriter;
@@ -35,18 +36,25 @@ class IssueConverter {
 
     private final AppConfig config;
     private final MigrationReport report;
+    private final FailureLog failureLog;
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
     private final RedmineUrlRewriter redmineUrlRewriter;
 
     IssueConverter(AppConfig config) {
-        this(config, new MigrationReport(config.getProjectSlug()));
+        this(config, new MigrationReport(config.getProjectSlug()),
+             new FailureLog(Path.of(config.getProjectOutputDir())));
     }
 
     IssueConverter(AppConfig config, MigrationReport report) {
+        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())));
+    }
+
+    IssueConverter(AppConfig config, MigrationReport report, FailureLog failureLog) {
         this.config = config;
         this.report = report;
+        this.failureLog = failureLog;
         this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
@@ -140,6 +148,7 @@ class IssueConverter {
             } catch (IOException e) {
                 log.warn("Issue 첨부파일 다운로드 실패 [name={}, url={}]: {}",
                         att.getFilename(), att.getContentUrl(), e.getMessage());
+                failureLog.append("attachment-download", att.getFilename(), "fetch", e.getMessage());
                 nameMapping.put(att.getFilename(), att.getFilename());
             }
         }

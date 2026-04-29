@@ -3,6 +3,7 @@ package com.redmine2github.service;
 import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.converter.AttachmentPathRewriter;
 import com.redmine2github.converter.LinkRewriter;
 import com.redmine2github.converter.RedmineUrlRewriter;
@@ -53,18 +54,25 @@ public class WikiMigrationService {
 
     private final AppConfig config;
     private final MigrationReport report;
+    private final FailureLog failureLog;
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
     private final RedmineUrlRewriter redmineUrlRewriter;
 
     public WikiMigrationService(AppConfig config) {
-        this(config, new MigrationReport(config.getProjectSlug()));
+        this(config, new MigrationReport(config.getProjectSlug()),
+             new FailureLog(Path.of(config.getProjectOutputDir())));
     }
 
     public WikiMigrationService(AppConfig config, MigrationReport report) {
+        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())));
+    }
+
+    public WikiMigrationService(AppConfig config, MigrationReport report, FailureLog failureLog) {
         this.config = config;
         this.report = report;
+        this.failureLog = failureLog;
         this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
@@ -117,8 +125,16 @@ public class WikiMigrationService {
 
         progress.start(nonEmpty.size());
 
+        Set<String> nonRetryableWikiFetch = retryFailed
+                ? failureLog.loadNonRetryableIds("wiki", "fetch")
+                : Collections.emptySet();
+
         for (RedmineWikiPage page : nonEmpty) {
             if (!retryFailed && state.isWikiPageFetched(page.getTitle())) {
+                progress.itemSkipped(page.getTitle());
+                continue;
+            }
+            if (retryFailed && nonRetryableWikiFetch.contains(page.getTitle())) {
                 progress.itemSkipped(page.getTitle());
                 continue;
             }
@@ -127,7 +143,6 @@ public class WikiMigrationService {
                 state.markWikiPageFetched(page.getTitle());
                 stateMgr.save();
                 progress.itemDone(page.getTitle());
-                // 첨부파일 통계 누적
                 for (RedmineAttachment att : page.getAttachments()) {
                     report.addAttachmentStats(1, att.getFilesize());
                 }
@@ -135,6 +150,7 @@ public class WikiMigrationService {
                 log.error("Wiki 페이지 수집 실패 [{}]: {}", page.getTitle(), e.getMessage(), e);
                 progress.itemFailed(page.getTitle(), e.getMessage());
                 report.addFailure("wiki", page.getTitle(), e.getMessage());
+                failureLog.append("wiki", page.getTitle(), "fetch", e.getMessage());
             }
         }
 
@@ -187,7 +203,7 @@ public class WikiMigrationService {
             } catch (IOException e) {
                 log.warn("첨부파일 다운로드 실패 [name={}, url={}]: {}",
                         att.getFilename(), att.getContentUrl(), e.getMessage(), e);
-                // 다운로드 실패 시 매핑에 추가하지 않음 — 존재하지 않는 파일로의 링크 방지
+                failureLog.append("attachment-download", att.getFilename(), "fetch", e.getMessage());
             }
         }
 
@@ -331,9 +347,17 @@ public class WikiMigrationService {
         int processedSinceRateCheck = 0;
         String projectSlug = config.getProjectSlug();
 
+        Set<String> nonRetryableWikiUpload = retryFailed
+                ? failureLog.loadNonRetryableIds("wiki-upload", "upload")
+                : Collections.emptySet();
+
         for (Path mdFile : mdFiles) {
             String repoPath = projectSlug + "/wiki/" + wikiDir.relativize(mdFile).toString().replace('\\', '/');
             if (!retryFailed && state.isWikiPageDone(repoPath)) {
+                progress.itemSkipped(repoPath);
+                continue;
+            }
+            if (retryFailed && nonRetryableWikiUpload.contains(repoPath)) {
                 progress.itemSkipped(repoPath);
                 continue;
             }
@@ -346,6 +370,7 @@ public class WikiMigrationService {
                 log.error("Wiki 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
                 progress.itemFailed(repoPath, e.getMessage());
                 report.addFailure("wiki-upload", repoPath, e.getMessage());
+                failureLog.append("wiki-upload", repoPath, "upload", e.getMessage());
             }
 
             if (++processedSinceRateCheck >= 10) {
@@ -355,6 +380,10 @@ public class WikiMigrationService {
         }
 
         // 첨부파일 업로드
+        Set<String> nonRetryableAttach = retryFailed
+                ? failureLog.loadNonRetryableIds("attachment-upload", "upload")
+                : Collections.emptySet();
+
         Path attachDir = Path.of(config.getProjectOutputDir(), "attachments");
         if (Files.exists(attachDir)) {
             try (Stream<Path> stream = Files.walk(attachDir)) {
@@ -365,6 +394,7 @@ public class WikiMigrationService {
                                 log.debug("첨부파일 스킵 (완료): {}", rp);
                                 return;
                             }
+                            if (retryFailed && nonRetryableAttach.contains(rp)) return;
                             try {
                                 fileUploader.uploadFile(f, rp, "migrate: " + rp);
                                 state.markAttachmentDone(rp);
@@ -372,6 +402,7 @@ public class WikiMigrationService {
                                 log.info("첨부파일 업로드: {}", rp);
                             } catch (Exception e) {
                                 log.warn("첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
+                                failureLog.append("attachment-upload", rp, "upload", e.getMessage());
                             }
                         });
             } catch (IOException e) {
@@ -390,6 +421,7 @@ public class WikiMigrationService {
                                 log.debug("외부 첨부파일 스킵 (완료): {}", rp);
                                 return;
                             }
+                            if (retryFailed && nonRetryableAttach.contains(rp)) return;
                             try {
                                 fileUploader.uploadFile(f, rp, "migrate: " + rp);
                                 state.markAttachmentDone(rp);
@@ -397,6 +429,7 @@ public class WikiMigrationService {
                                 log.info("외부 첨부파일 업로드: {}", rp);
                             } catch (Exception e) {
                                 log.warn("외부 첨부파일 업로드 실패 [{}]: {}", rp, e.getMessage());
+                                failureLog.append("attachment-upload", rp, "upload", e.getMessage());
                             }
                         });
             } catch (IOException e) {

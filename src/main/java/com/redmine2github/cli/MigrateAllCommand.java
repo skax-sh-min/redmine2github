@@ -1,6 +1,7 @@
 package com.redmine2github.cli;
 
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.service.IssueMigrationService;
 import com.redmine2github.service.TimeEntryMigrationService;
 import com.redmine2github.service.WikiMigrationService;
@@ -61,18 +62,19 @@ public class MigrateAllCommand implements Runnable {
         boolean runTime   = only == null || "time-entries".equals(only);
 
         MigrationReport report = new MigrationReport(config.getProjectSlug());
+        FailureLog failureLog  = new FailureLog(Path.of(config.getProjectOutputDir()));
 
         if (runWiki) {
             log.info("=== Wiki 마이그레이션 시작 ===");
-            new WikiMigrationService(config, report).run(resume, retryFailed);
+            new WikiMigrationService(config, report, failureLog).run(resume, retryFailed);
         }
         if (runIssues) {
             log.info("=== Issues 마이그레이션 시작 ===");
-            new IssueMigrationService(config, report).run(resume, retryFailed);
+            new IssueMigrationService(config, report, failureLog).run(resume, retryFailed);
         }
         if (runTime) {
             log.info("=== Time Entries 마이그레이션 시작 ===");
-            new TimeEntryMigrationService(config, report).run(resume, retryFailed);
+            new TimeEntryMigrationService(config, report, failureLog).run(resume, retryFailed);
         }
 
         report.writeToFile(Path.of(config.getProjectOutputDir()));

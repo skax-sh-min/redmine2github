@@ -1,6 +1,7 @@
 package com.redmine2github.cli;
 
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.redmine.RedmineClient;
 import com.redmine2github.redmine.model.RedmineProject;
 import com.redmine2github.service.IssueMigrationService;
@@ -183,9 +184,10 @@ public class FetchCommand implements Runnable {
 
     private void runProject(AppConfig config, boolean runWiki, boolean runIssues, boolean runTime) {
         MigrationReport report = new MigrationReport(config.getProjectSlug());
-        if (runWiki)   new WikiMigrationService(config, report).fetch(resume, retryFailed);
-        if (runIssues) new IssueMigrationService(config, report).fetch(resume, retryFailed);
-        if (runTime)   new TimeEntryMigrationService(config, report).fetch(resume, retryFailed);
+        FailureLog failureLog  = new FailureLog(Path.of(config.getProjectOutputDir()));
+        if (runWiki)   new WikiMigrationService(config, report, failureLog).fetch(resume, retryFailed);
+        if (runIssues) new IssueMigrationService(config, report, failureLog).fetch(resume, retryFailed);
+        if (runTime)   new TimeEntryMigrationService(config, report, failureLog).fetch(resume, retryFailed);
         report.writeToFile(Path.of(config.getProjectOutputDir()));
     }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.cli.ProgressReporter;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.github.GitHubFileUploader;
 import com.redmine2github.github.GitHubUploader;
 import com.redmine2github.redmine.RedmineClient;
@@ -21,8 +22,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -50,16 +53,23 @@ public class IssueMigrationService {
 
     private final AppConfig config;
     private final MigrationReport report;
+    private final FailureLog failureLog;
     private final IssueConverter issueConverter;
 
     public IssueMigrationService(AppConfig config) {
-        this(config, new MigrationReport(config.getProjectSlug()));
+        this(config, new MigrationReport(config.getProjectSlug()),
+             new FailureLog(Path.of(config.getProjectOutputDir())));
     }
 
     public IssueMigrationService(AppConfig config, MigrationReport report) {
+        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())));
+    }
+
+    public IssueMigrationService(AppConfig config, MigrationReport report, FailureLog failureLog) {
         this.config = config;
         this.report = report;
-        this.issueConverter = new IssueConverter(config, report);
+        this.failureLog = failureLog;
+        this.issueConverter = new IssueConverter(config, report, failureLog);
     }
 
     // ── Phase 1: Redmine → 로컬 ───────────────────────────────────────────────
@@ -122,8 +132,16 @@ public class IssueMigrationService {
         List<RedmineIssue> issueList = redmine.fetchAllIssues();
         progress.start(issueList.size());
 
+        Set<String> nonRetryableIssueFetch = retryFailed
+                ? failureLog.loadNonRetryableIds("issue", "fetch")
+                : Collections.emptySet();
+
         for (RedmineIssue basicIssue : issueList) {
             if (!retryFailed && state.isIssueFetched(basicIssue.getId())) {
+                progress.itemSkipped("#" + basicIssue.getId());
+                continue;
+            }
+            if (retryFailed && nonRetryableIssueFetch.contains("#" + basicIssue.getId())) {
                 progress.itemSkipped("#" + basicIssue.getId());
                 continue;
             }
@@ -141,6 +159,7 @@ public class IssueMigrationService {
                 log.error("Issue 수집 실패 [#{}]: {}", basicIssue.getId(), e.getMessage(), e);
                 progress.itemFailed("#" + basicIssue.getId(), e.getMessage());
                 report.addFailure("issue", "#" + basicIssue.getId(), e.getMessage());
+                failureLog.append("issue", "#" + basicIssue.getId(), "fetch", e.getMessage());
             }
         }
 
@@ -314,6 +333,10 @@ public class IssueMigrationService {
         progress.start(issueFiles.size());
         int processedSinceRateCheck = 0;
 
+        Set<String> nonRetryableIssueUpload = retryFailed
+                ? failureLog.loadNonRetryableIds("issue-upload", "upload")
+                : Collections.emptySet();
+
         for (Path issueFile : issueFiles) {
             LocalIssue local;
             try {
@@ -324,6 +347,10 @@ public class IssueMigrationService {
             }
 
             if (!retryFailed && state.isIssueDone(local.getRedmineId())) {
+                progress.itemSkipped("#" + local.getRedmineId());
+                continue;
+            }
+            if (retryFailed && nonRetryableIssueUpload.contains("#" + local.getRedmineId())) {
                 progress.itemSkipped("#" + local.getRedmineId());
                 continue;
             }
@@ -339,6 +366,7 @@ public class IssueMigrationService {
                 stateMgr.save();
                 progress.itemFailed("#" + local.getRedmineId(), e.getMessage());
                 report.addFailure("issue-upload", "#" + local.getRedmineId(), e.getMessage());
+                failureLog.append("issue-upload", "#" + local.getRedmineId(), "upload", e.getMessage());
             }
 
             if (++processedSinceRateCheck >= 20) {
@@ -399,9 +427,17 @@ public class IssueMigrationService {
         ProgressReporter mdProgress = new ProgressReporter("Issues[upload-md]");
         mdProgress.start(mdFiles.size());
 
+        Set<String> nonRetryableMdUpload = retryFailed
+                ? failureLog.loadNonRetryableIds("issue-md-upload", "upload")
+                : Collections.emptySet();
+
         for (Path mdFile : mdFiles) {
             String repoPath = slug + "/issues/" + mdFile.getFileName();
             if (!retryFailed && state.isIssueMdDone(repoPath)) {
+                mdProgress.itemSkipped(repoPath);
+                continue;
+            }
+            if (retryFailed && nonRetryableMdUpload.contains(repoPath)) {
                 mdProgress.itemSkipped(repoPath);
                 continue;
             }
@@ -414,6 +450,7 @@ public class IssueMigrationService {
                 log.error("Issue MD 업로드 실패 [{}]: {}", repoPath, e.getMessage(), e);
                 mdProgress.itemFailed(repoPath, e.getMessage());
                 report.addFailure("issue-md-upload", repoPath, e.getMessage());
+                failureLog.append("issue-md-upload", repoPath, "upload", e.getMessage());
             }
         }
 

@@ -1,6 +1,7 @@
 package com.redmine2github.cli;
 
 import com.redmine2github.cli.MigrationReport;
+import com.redmine2github.state.FailureLog;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.service.IssueMigrationService;
 import com.redmine2github.service.TimeEntryMigrationService;
@@ -92,17 +93,18 @@ public class UploadCommand implements Runnable {
 
     private void runSingle(AppConfig config, boolean runWiki, boolean runIssues, boolean runTime) {
         MigrationReport report = new MigrationReport(config.getProjectSlug());
+        FailureLog failureLog  = new FailureLog(Path.of(config.getProjectOutputDir()));
         if (runWiki) {
             log.info("=== Wiki upload 시작 ===");
-            new WikiMigrationService(config, report).upload(resume, retryFailed);
+            new WikiMigrationService(config, report, failureLog).upload(resume, retryFailed);
         }
         if (runIssues) {
             log.info("=== Issues upload 시작 ===");
-            new IssueMigrationService(config, report).upload(resume, retryFailed);
+            new IssueMigrationService(config, report, failureLog).upload(resume, retryFailed);
         }
         if (runTime) {
             log.info("=== Time Entries upload 시작 ===");
-            new TimeEntryMigrationService(config, report).upload(resume, retryFailed);
+            new TimeEntryMigrationService(config, report, failureLog).upload(resume, retryFailed);
         }
         report.writeToFile(Path.of(config.getProjectOutputDir()));
         log.info("=== upload 완료 ===");
