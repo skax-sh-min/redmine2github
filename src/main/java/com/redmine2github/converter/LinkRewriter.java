@@ -68,8 +68,8 @@ public class LinkRewriter {
                 String targetProject = pageRef.substring(0, colonIdx).trim();
                 String pageName      = pageRef.substring(colonIdx + 1).trim();
                 String displayLabel  = label != null ? label : pageName;
-                String relPath = crossProjectRelPath(currentProject, currentWikiDir,
-                                                     targetProject, pageName) + anchor;
+                String relPath = encodeParens(crossProjectRelPath(currentProject, currentWikiDir,
+                                                     targetProject, pageName)) + anchor;
                 return "[" + displayLabel + "](" + relPath + ")";
             }
 
@@ -85,7 +85,7 @@ public class LinkRewriter {
             if (targetPath == null) {
                 targetPath = pageRef.replace(" ", "-") + ".md";
             }
-            String relPath = computeRelativePath(currentWikiDir, targetPath) + anchor;
+            String relPath = encodeParens(computeRelativePath(currentWikiDir, targetPath)) + anchor;
             return "[" + displayLabel + "](" + relPath + ")";
         });
     }
@@ -154,5 +154,14 @@ public class LinkRewriter {
      *  Redmine 제목은 '_'로 저장되지만 [[링크]] 텍스트는 공백으로 쓰이므로 동일하게 처리한다. */
     private static String normalizeKey(String title) {
         return title.replace('_', ' ').toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * 마크다운 링크 URL에서 괄호를 percent-encode한다.
+     * {@code (} → {@code %28}, {@code )} → {@code %29}.
+     * 링크 텍스트({@code []}) 부분에는 적용하지 않는다.
+     */
+    private static String encodeParens(String path) {
+        return path.replace("(", "%28").replace(")", "%29");
     }
 }

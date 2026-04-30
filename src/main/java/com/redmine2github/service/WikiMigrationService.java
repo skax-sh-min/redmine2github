@@ -21,8 +21,12 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -51,6 +55,10 @@ import java.util.stream.Stream;
 public class WikiMigrationService {
 
     private static final Logger log = LoggerFactory.getLogger(WikiMigrationService.class);
+
+    /** h2 이상 heading 파싱용 — 목차 생성에 사용 */
+    private static final Pattern HEADING_LINE =
+            Pattern.compile("^(#{1,6})\\s+(.+)$");
 
     private final AppConfig config;
     private final MigrationReport report;
@@ -210,6 +218,12 @@ public class WikiMigrationService {
         // ② Markdown 변환 및 링크 재작성
         String markdown = converter.convert(page.getText());
 
+        // 본문이 제목만 반복하거나 실질적으로 비어 있으면 파일 생성 생략
+        if (isBodyEffectivelyEmpty(markdown)) {
+            log.info("빈 페이지 건너뜀 (실질 본문 없음): {}", page.getTitle());
+            return;
+        }
+
         String wikiPath = titleToWikiPath.get(page.getTitle());
 
         // 현재 파일의 wiki 루트 기준 디렉터리 (링크 상대 경로 계산용)
@@ -245,6 +259,11 @@ public class WikiMigrationService {
 
         // ⑤ 제목 + 메타 정보 블록 (작성자·날짜·수정메모) 앞에 삽입
         markdown = prependPageMeta(page, markdown);
+
+        // ⑥ 70줄 초과 페이지에 목차 자동 삽입
+        if (markdown.lines().count() > 70) {
+            markdown = insertTableOfContents(markdown);
+        }
 
         Path localPath = Path.of(config.getProjectOutputDir(), "wiki", wikiPath);
         Files.createDirectories(localPath.getParent());
@@ -313,6 +332,98 @@ public class WikiMigrationService {
     private static String dateOnly(String iso) {
         int t = iso.indexOf('T');
         return t > 0 ? iso.substring(0, t) : iso;
+    }
+
+    // ── 빈 페이지 판별 ─────────────────────────────────────────────────────────
+
+    /**
+     * 변환된 마크다운 본문이 제목 행({@code # ...})과 공백 줄만으로 구성되어
+     * 실질적인 내용이 없으면 {@code true}를 반환한다.
+     */
+    private static boolean isBodyEffectivelyEmpty(String bodyMd) {
+        if (bodyMd == null || bodyMd.isBlank()) return true;
+        return bodyMd.lines()
+                     .map(String::strip)
+                     .filter(l -> !l.isEmpty())
+                     .filter(l -> !l.startsWith("#"))
+                     .findAny()
+                     .isEmpty();
+    }
+
+    // ── 목차 자동 생성 ──────────────────────────────────────────────────────────
+
+    /**
+     * 마크다운에서 h2 이상 헤딩을 추출하여 {@code ## 목차} 블록을 생성하고
+     * 메타 구분선({@code ---}) 바로 뒤에 삽입한다.
+     *
+     * <ul>
+     *   <li>코드 블록({@code ```}) 내부의 헤딩은 무시한다.</li>
+     *   <li>헤딩이 2개 미만이면 삽입하지 않는다.</li>
+     * </ul>
+     */
+    private static String insertTableOfContents(String markdown) {
+        String[] lines = markdown.split("\n", -1);
+
+        List<Integer> levels = new ArrayList<>();
+        List<String>  texts  = new ArrayList<>();
+        boolean inCode       = false;
+        int dividerLine      = -1;  // --- 메타 구분선 위치
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            if (line.startsWith("```")) inCode = !inCode;
+            if (inCode) continue;
+            // 앞 10줄 이내의 --- 를 메타 구분선으로 인식
+            if (i < 10 && line.equals("---")) dividerLine = i;
+
+            Matcher m = HEADING_LINE.matcher(line);
+            if (m.matches()) {
+                int level = m.group(1).length();
+                if (level >= 2) {   // h1(페이지 제목)은 목차에서 제외
+                    levels.add(level);
+                    texts.add(m.group(2).strip());
+                }
+            }
+        }
+
+        if (texts.size() < 2) return markdown;  // 헤딩 2개 미만이면 목차 불필요
+
+        // TOC 블록 생성
+        StringBuilder toc = new StringBuilder("## 목차\n\n");
+        for (int i = 0; i < texts.size(); i++) {
+            int    level  = levels.get(i);
+            String text   = texts.get(i);
+            String anchor = headingToAnchor(text);
+            toc.append("  ".repeat(Math.max(0, level - 2)))
+               .append("- [").append(text).append("](#").append(anchor).append(")\n");
+        }
+        toc.append("\n");
+
+        // 삽입 위치: --- 다음 줄, 없으면 첫 번째 빈 줄 이후
+        int insertAfterIdx = dividerLine >= 0 ? dividerLine : 1;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i <= insertAfterIdx; i++) {
+            sb.append(lines[i]).append("\n");
+        }
+        sb.append("\n").append(toc);
+        for (int i = insertAfterIdx + 1; i < lines.length; i++) {
+            sb.append(lines[i]);
+            if (i < lines.length - 1) sb.append("\n");
+        }
+        if (markdown.endsWith("\n") && !sb.toString().endsWith("\n")) sb.append("\n");
+        return sb.toString();
+    }
+
+    /**
+     * GitHub 앵커 생성 규칙:
+     * 소문자 변환 → 특수문자 제거(유니코드 글자·숫자·공백·하이픈 유지) → 공백을 하이픈으로.
+     */
+    private static String headingToAnchor(String text) {
+        return text.toLowerCase(java.util.Locale.ROOT)
+                   .replaceAll("[^\\p{L}\\p{N}\\s\\-]", "")
+                   .trim()
+                   .replaceAll("\\s+", "-");
     }
 
     // ── Phase 2: 로컬 → GitHub ────────────────────────────────────────────────
