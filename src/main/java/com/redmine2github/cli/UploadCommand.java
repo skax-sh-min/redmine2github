@@ -173,48 +173,29 @@ public class UploadCommand implements Runnable {
     }
 
     /**
-     * {@code output/all_projects_wiki.md} 와 {@code output/all_projects_issue.md}를
-     * GitHub Repository 루트에 업로드한다.
+     * {@code output/all_projects.md}를 GitHub Repository 루트에 업로드한다.
      *
-     * <p>wiki 업로드 시 {@code all_projects_wiki.md},
-     * issue 업로드 시 {@code all_projects_issue.md}를 각각 업로드한다.</p>
+     * <p>wiki 또는 issues 중 하나라도 업로드 대상이면 실행한다.</p>
      */
     private void uploadProjectIndexFiles(AppConfig config, boolean runWiki, boolean runIssues, Path outputRoot) {
+        if (!runWiki && !runIssues) return;
+
         GitHubUploader ghUploader = new GitHubUploader(config);
         GitHubFileUploader fileUploader = new GitHubFileUploader(config, ghUploader);
 
-        if (runWiki) {
-            Path wikiIndex = outputRoot.resolve("all_projects_wiki.md");
-            if (Files.exists(wikiIndex)) {
-                try {
-                    fileUploader.uploadFile(wikiIndex, "all_projects_wiki.md",
-                            "migrate: all_projects_wiki.md");
-                    log.info("all_projects_wiki.md 업로드 완료");
-                    System.out.println("  → all_projects_wiki.md 업로드 완료");
-                } catch (Exception e) {
-                    log.error("all_projects_wiki.md 업로드 실패: {}", e.getMessage(), e);
-                    System.err.println("  [WARN] all_projects_wiki.md 업로드 실패: " + e.getMessage());
-                }
-            } else {
-                log.warn("all_projects_wiki.md 파일이 없습니다: {}", wikiIndex);
+        Path indexFile = outputRoot.resolve("all_projects.md");
+        if (Files.exists(indexFile)) {
+            try {
+                fileUploader.uploadFile(indexFile, "all_projects.md",
+                        "migrate: all_projects.md");
+                log.info("all_projects.md 업로드 완료");
+                System.out.println("  → all_projects.md 업로드 완료");
+            } catch (Exception e) {
+                log.error("all_projects.md 업로드 실패: {}", e.getMessage(), e);
+                System.err.println("  [WARN] all_projects.md 업로드 실패: " + e.getMessage());
             }
-        }
-
-        if (runIssues) {
-            Path issueIndex = outputRoot.resolve("all_projects_issue.md");
-            if (Files.exists(issueIndex)) {
-                try {
-                    fileUploader.uploadFile(issueIndex, "all_projects_issue.md",
-                            "migrate: all_projects_issue.md");
-                    log.info("all_projects_issue.md 업로드 완료");
-                    System.out.println("  → all_projects_issue.md 업로드 완료");
-                } catch (Exception e) {
-                    log.error("all_projects_issue.md 업로드 실패: {}", e.getMessage(), e);
-                    System.err.println("  [WARN] all_projects_issue.md 업로드 실패: " + e.getMessage());
-                }
-            } else {
-                log.warn("all_projects_issue.md 파일이 없습니다: {}", issueIndex);
-            }
+        } else {
+            log.warn("all_projects.md 파일이 없습니다: {}", indexFile);
         }
     }
 }

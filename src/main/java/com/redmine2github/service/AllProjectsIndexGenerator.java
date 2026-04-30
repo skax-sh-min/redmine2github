@@ -19,20 +19,17 @@ import java.util.stream.Stream;
 /**
  * 전체 프로젝트 인덱스 파일을 생성한다.
  *
- * <p>fetch-all 완료 후 {@code output/} 디렉터리를 스캔하여 두 파일을 생성한다:
- * <ul>
- *   <li>{@code output/all_projects_wiki.md} — 프로젝트별 Wiki 페이지 목록 인덱스</li>
- *   <li>{@code output/all_projects_issue.md} — 프로젝트별 Issue 목록 인덱스</li>
- * </ul>
+ * <p>fetch-all 완료 후 {@code output/} 디렉터리를 스캔하여
+ * {@code output/all_projects.md} 한 파일을 생성한다.
  *
- * <p>정렬 기준:
- * <ol>
- *   <li>해당 항목 수 내림차순 (wiki 페이지 수 / issue 수)</li>
- *   <li>그다음 항목 수 내림차순 (issue 수 / wiki 페이지 수)</li>
- *   <li>프로젝트 표시 이름 오름차순</li>
- * </ol>
+ * <p>테이블 컈럼: | 프로젝트 ID | 프로젝트 명칭 | Wiki 페이지수 | Issue 개수 | 설명 |
  *
- * <p>프로젝트 이름은 {@code _project.json}에서 읽어오며, 없으면 폴더명을 사용한다.
+ * <p>Wiki 페이지수에는 wiki 메인 페이지 링크,
+ * Issue 개수에는 issues.md 링크를 연결한다.
+ *
+ * <p>정렬 기준: Wiki 수 DESC → Issue 수 DESC → 프로젝트 명칭 ASC
+ *
+ * <p>프로젝트 이름은 {@code _project.json}(의 {@code name} 필드)에서 읽어오며, 없으면 폴더명을 사용한다.
  */
 public class AllProjectsIndexGenerator {
 
@@ -53,12 +50,10 @@ public class AllProjectsIndexGenerator {
             return;
         }
 
-        writeWikiIndex(root, stats);
-        writeIssueIndex(root, stats);
+        writeAllProjects(root, stats);
 
         System.out.printf(
-                "  → 전체 프로젝트 인덱스 생성 완료 (%d개 프로젝트): " +
-                "all_projects_wiki.md / all_projects_issue.md%n",
+                "  → 전체 프로젝트 인덱스 생성 완료 (%d개 프로젝트): all_projects.md%n",
                 stats.size());
     }
 
@@ -172,10 +167,18 @@ public class AllProjectsIndexGenerator {
         }
     }
 
-    // ── Wiki 인덱스 출력 ───────────────────────────────────────────────────────
+    // ── 전체 프로젝트 인덱스 출력 ─────────────────────────────────────────────
 
-    private static void writeWikiIndex(Path root, List<ProjectStats> stats) {
-        // 정렬: Wiki 수 DESC → Issue 수 DESC → 이름 ASC
+    /**
+     * 전체 프로젝트를 하나의 테이블로 출력한다.
+     *
+     * <p>정렬: Wiki 수 DESC → Issue 수 DESC → 명칭 ASC
+     *
+     * <p>컬럼: | 프로젝트 ID | 프로젝트 명칭 | Wiki 페이지수 | Issue 개수 | 설명 |
+     * <br>Wiki 페이지수, Issue 개수 셀에 링크를 포함한다.
+     */
+    private static void writeAllProjects(Path root, List<ProjectStats> stats) {
+        // 정렬: Wiki 수 DESC → Issue 수 DESC → 명칭 ASC
         List<ProjectStats> sorted = stats.stream()
                 .sorted(Comparator
                         .comparingInt(ProjectStats::wikiCount).reversed()
@@ -185,75 +188,39 @@ public class AllProjectsIndexGenerator {
 
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
         StringBuilder sb = new StringBuilder();
-        sb.append("# 전체 프로젝트 — Wiki 인덱스\n\n");
+        sb.append("# 전체 프로젝트\n\n");
         sb.append("> 생성 시각: ").append(now).append("  \n");
         sb.append("> 총 ").append(sorted.size()).append("개 프로젝트 / ")
-          .append(sorted.stream().mapToInt(ProjectStats::wikiCount).sum()).append("개 Wiki 페이지\n\n");
-
-        sb.append("| 프로젝트 | Wiki 페이지 | Issue | 설명 |\n");
-        sb.append("|---|---:|---:|---|\n");
-
-        for (ProjectStats s : sorted) {
-            String displayName = s.name() + " (" + s.wikiCount() + "개)";
-            String wikiLink;
-            if (s.wikiMainPage() != null) {
-                wikiLink = "[" + displayName + "](" + s.slug() + "/" + s.wikiMainPage() + ")";
-            } else {
-                wikiLink = displayName;
-            }
-            String descCell = s.description().length() > 60
-                    ? s.description().substring(0, 57) + "..."
-                    : s.description();
-            sb.append("| ").append(wikiLink)
-              .append(" | ").append(s.wikiCount())
-              .append(" | ").append(s.issueCount())
-              .append(" | ").append(escapeTable(descCell))
-              .append(" |\n");
-        }
-
-        writeSafe(root.resolve("all_projects_wiki.md"), sb.toString(), "all_projects_wiki.md");
-    }
-
-    // ── Issue 인덱스 출력 ──────────────────────────────────────────────────────
-
-    private static void writeIssueIndex(Path root, List<ProjectStats> stats) {
-        // 정렬: Issue 수 DESC → Wiki 수 DESC → 이름 ASC
-        List<ProjectStats> sorted = stats.stream()
-                .sorted(Comparator
-                        .comparingInt(ProjectStats::issueCount).reversed()
-                        .thenComparing(Comparator.comparingInt(ProjectStats::wikiCount).reversed())
-                        .thenComparing(ProjectStats::name))
-                .toList();
-
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-        StringBuilder sb = new StringBuilder();
-        sb.append("# 전체 프로젝트 — Issue 인덱스\n\n");
-        sb.append("> 생성 시각: ").append(now).append("  \n");
-        sb.append("> 총 ").append(sorted.size()).append("개 프로젝트 / ")
+          .append(sorted.stream().mapToInt(ProjectStats::wikiCount).sum()).append("개 Wiki 페이지 / ")
           .append(sorted.stream().mapToInt(ProjectStats::issueCount).sum()).append("개 Issue\n\n");
 
-        sb.append("| 프로젝트 | Issue | Wiki 페이지 | 설명 |\n");
-        sb.append("|---|---:|---:|---|\n");
+        sb.append("| 프로젝트 ID | 프로젝트 명칭 | Wiki 페이지수 | Issue 개수 | 설명 |\n");
+        sb.append("|---|---|---:|---:|---|\n");
 
         for (ProjectStats s : sorted) {
-            String displayName = s.name() + " (" + s.issueCount() + "개)";
-            String issueLink;
-            if (s.hasIssueIndex()) {
-                issueLink = "[" + displayName + "](" + s.slug() + "/issues.md)";
-            } else {
-                issueLink = displayName;
-            }
+            // Wiki 페이지수 셀: 메인페이지 링크 포함
+            String wikiCell = s.wikiMainPage() != null
+                    ? "[" + s.wikiCount() + "](" + s.slug() + "/" + s.wikiMainPage() + ")"
+                    : String.valueOf(s.wikiCount());
+
+            // Issue 개수 셀: issues.md 링크 포함
+            String issueCell = s.hasIssueIndex()
+                    ? "[" + s.issueCount() + "](" + s.slug() + "/issues.md)"
+                    : String.valueOf(s.issueCount());
+
             String descCell = s.description().length() > 60
                     ? s.description().substring(0, 57) + "..."
                     : s.description();
-            sb.append("| ").append(issueLink)
-              .append(" | ").append(s.issueCount())
-              .append(" | ").append(s.wikiCount())
+
+            sb.append("| ").append(s.slug())
+              .append(" | ").append(s.name())
+              .append(" | ").append(wikiCell)
+              .append(" | ").append(issueCell)
               .append(" | ").append(escapeTable(descCell))
               .append(" |\n");
         }
 
-        writeSafe(root.resolve("all_projects_issue.md"), sb.toString(), "all_projects_issue.md");
+        writeSafe(root.resolve("all_projects.md"), sb.toString(), "all_projects.md");
     }
 
     // ── 유틸 ──────────────────────────────────────────────────────────────────
