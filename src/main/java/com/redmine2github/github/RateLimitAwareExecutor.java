@@ -121,7 +121,6 @@ public class RateLimitAwareExecutor {
         String lower = msg.toLowerCase();
         return lower.contains("rate limit")
             || lower.contains("api rate")
-            || lower.contains("403")
             || lower.contains("429");
     }
 
