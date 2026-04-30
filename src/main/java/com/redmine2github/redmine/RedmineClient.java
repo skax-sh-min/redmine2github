@@ -310,6 +310,30 @@ public class RedmineClient {
         return list;
     }
 
+    /** 이슈 상태 목록 수집 — GET /issue_statuses.json */
+    public List<RedmineNamedItem> fetchIssueStatuses() {
+        if (cache != null) {
+            Optional<ArrayNode> cached = cache.loadArray("issue_statuses");
+            if (cached.isPresent()) {
+                List<RedmineNamedItem> list = new ArrayList<>();
+                for (JsonNode n : cached.get()) list.add(RedmineNamedItem.from(n));
+                return list;
+            }
+        }
+
+        String url = baseUrl + "/issue_statuses.json";
+        JsonNode root = get(url);
+        ArrayNode rawArray = mapper.createArrayNode();
+        List<RedmineNamedItem> list = new ArrayList<>();
+        for (JsonNode node : root.path("issue_statuses")) {
+            rawArray.add(node);
+            list.add(RedmineNamedItem.from(node));
+        }
+
+        if (cache != null) cache.saveArray("issue_statuses", rawArray);
+        return list;
+    }
+
     public List<RedmineUser> fetchUsers() {
         if (cache != null) {
             Optional<ArrayNode> cached = cache.loadArray("users");

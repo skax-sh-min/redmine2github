@@ -253,8 +253,7 @@ public class IssueMigrationService {
                 "Redmine 프로젝트: " + config.getProjectSlug()));
         redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel("tracker:" + t.getName(), "aaaaaa", "")));
         redmine.fetchIssuePriorities().forEach(p -> labels.add(new LocalLabel("priority:" + p.getName(), "fbca04", "")));
-        List.of("New", "In Progress", "Resolved", "Closed", "Feedback").forEach(s ->
-                labels.add(new LocalLabel("status:" + s, "00aabb", "")));
+        redmine.fetchIssueStatuses().forEach(s -> labels.add(new LocalLabel("status:" + s.getName(), "00aabb", "")));
         redmine.fetchIssueCategories().forEach(c -> labels.add(new LocalLabel("category:" + c.getName(), "e8852c", "")));
         mapper.writeValue(issuesJsonDir.resolve("_labels.json").toFile(), labels);
         log.info("Label 정의 저장: {}개", labels.size());
