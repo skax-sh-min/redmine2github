@@ -4,6 +4,7 @@ import com.redmine2github.config.AppConfig;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.kohsuke.github.GHContent;
+import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +119,7 @@ public class GitHubFileUploader {
                             .content(content)
                             .sha(existing.getSha())
                             .commit();
-                } catch (Exception e) {
+                } catch (GHFileNotFoundException e) {
                     // 파일이 없으면 신규 생성
                     repo.createContent()
                             .path(repoPath)
