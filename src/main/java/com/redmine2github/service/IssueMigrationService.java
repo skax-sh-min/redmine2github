@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -248,15 +249,29 @@ public class IssueMigrationService {
     }
 
     private void saveLabelDefs(RedmineClient redmine, Path issuesJsonDir, ObjectMapper mapper) throws IOException {
+        Map<String, Map<String, String>> labelColors = config.getLabelColors();
         List<LocalLabel> labels = new ArrayList<>();
         labels.add(new LocalLabel("project:" + config.getProjectSlug(), "0e8a16",
                 "Redmine 프로젝트: " + config.getProjectSlug()));
-        redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel("tracker:" + t.getName(), "aaaaaa", "")));
-        redmine.fetchIssuePriorities().forEach(p -> labels.add(new LocalLabel("priority:" + p.getName(), "fbca04", "")));
-        redmine.fetchIssueStatuses().forEach(s -> labels.add(new LocalLabel("status:" + s.getName(), "00aabb", "")));
-        redmine.fetchIssueCategories().forEach(c -> labels.add(new LocalLabel("category:" + c.getName(), "e8852c", "")));
+        redmine.fetchTrackers().forEach(t -> labels.add(new LocalLabel(
+                "tracker:" + t.getName(), labelColor(labelColors, "tracker", t.getName(), "aaaaaa"), "")));
+        redmine.fetchIssuePriorities().forEach(p -> labels.add(new LocalLabel(
+                "priority:" + p.getName(), labelColor(labelColors, "priority", p.getName(), "fbca04"), "")));
+        redmine.fetchIssueStatuses().forEach(s -> labels.add(new LocalLabel(
+                "status:" + s.getName(), labelColor(labelColors, "status", s.getName(), "00aabb"), "")));
+        redmine.fetchIssueCategories().forEach(c -> labels.add(new LocalLabel(
+                "category:" + c.getName(), labelColor(labelColors, "category", c.getName(), "e8852c"), "")));
         mapper.writeValue(issuesJsonDir.resolve("_labels.json").toFile(), labels);
         log.info("Label 정의 저장: {}개", labels.size());
+    }
+
+    /** label-colors.yml 색상 맵에서 색상을 조회하고, 없으면 defaultColor를 반환한다. */
+    private static String labelColor(Map<String, Map<String, String>> colors,
+                                     String category, String name, String defaultColor) {
+        if (colors == null) return defaultColor;
+        Map<String, String> cat = colors.get(category);
+        if (cat == null) return defaultColor;
+        return cat.getOrDefault(name, defaultColor);
     }
 
     private void saveMilestoneDefs(RedmineClient redmine, Path issuesDir, ObjectMapper mapper) throws IOException {

@@ -43,6 +43,8 @@ public class AppConfig {
      * 0 이하이면 제한 없음.
      */
     private final long uploadMaxFileSizeKb;
+    /** label-colors.yml 에서 로드한 Label 색상 맵. {카테고리 → {항목명 → hex색상}}. */
+    private final Map<String, Map<String, String>> labelColors;
 
     /** 특정 필드를 직접 주입하는 내부 생성자 (withProject 등에서 사용). */
     private AppConfig(String redmineUrl, String redmineApiKey, String redmineUsername,
@@ -51,7 +53,8 @@ public class AppConfig {
                       String outputDir, String cacheDir, String uploadMethod,
                       Map<String, String> userMapping, int requestDelayMs,
                       List<String> redmineProjects, List<String[]> urlRewrites,
-                      boolean issueMdFetch, long uploadMaxFileSizeKb) {
+                      boolean issueMdFetch, long uploadMaxFileSizeKb,
+                      Map<String, Map<String, String>> labelColors) {
         this.redmineUrl          = redmineUrl;
         this.redmineApiKey       = redmineApiKey;
         this.redmineUsername     = redmineUsername;
@@ -69,6 +72,7 @@ public class AppConfig {
         this.urlRewrites         = urlRewrites;
         this.issueMdFetch        = issueMdFetch;
         this.uploadMaxFileSizeKb = uploadMaxFileSizeKb;
+        this.labelColors         = labelColors;
     }
 
     private AppConfig(Dotenv env, Map<String, String> userMapping) {
@@ -95,6 +99,7 @@ public class AppConfig {
         this.urlRewrites         = loadUrlRewrites();
         this.issueMdFetch        = Boolean.parseBoolean(env.get("REDMINE_ISSUE_MD_FETCH", "true"));
         this.uploadMaxFileSizeKb = Long.parseLong(env.get("UPLOAD_MAX_FILE_SIZE_KB", "0"));
+        this.labelColors         = loadLabelColors();
     }
 
     public static AppConfig load() {
@@ -127,6 +132,31 @@ public class AppConfig {
             log.warn("url-rewrites.yml 로드 실패: {}", e.getMessage());
         }
         return Collections.emptyList();
+    }
+
+    private static Map<String, Map<String, String>> loadLabelColors() {
+        File file = new File("label-colors.yml");
+        if (!file.exists()) return Collections.emptyMap();
+        try {
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            Map<String, Object> root = mapper.readValue(file, new TypeReference<Map<String, Object>>() {});
+            Map<String, Map<String, String>> result = new java.util.LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : root.entrySet()) {
+                if (!(entry.getValue() instanceof Map<?, ?> inner)) continue;
+                Map<String, String> colorMap = new java.util.LinkedHashMap<>();
+                for (Map.Entry<?, ?> e : inner.entrySet()) {
+                    if (e.getKey() instanceof String k && e.getValue() instanceof String v) {
+                        colorMap.put(k, v);
+                    }
+                }
+                result.put(entry.getKey(), colorMap);
+            }
+            log.info("label-colors.yml 로드: {}개 카테고리", result.size());
+            return result;
+        } catch (Exception e) {
+            log.warn("label-colors.yml 로드 실패: {}", e.getMessage());
+        }
+        return Collections.emptyMap();
     }
 
     private static Map<String, String> loadUserMapping() {
@@ -178,6 +208,8 @@ public class AppConfig {
     public boolean isIssueMdFetch()           { return issueMdFetch; }
     /** 업로드 파일 크기 상한 (KB). 0 이하이면 제한 없음. */
     public long getUploadMaxFileSizeKb()      { return uploadMaxFileSizeKb; }
+    /** label-colors.yml 에서 로드한 색상 맵. {카테고리 → {항목명 → hex색상}}. */
+    public Map<String, Map<String, String>> getLabelColors() { return labelColors; }
 
     /**
      * 프로젝트별 출력 디렉터리: {@code {outputDir}/{project}}.
@@ -209,6 +241,6 @@ public class AppConfig {
         return new AppConfig(redmineUrl, redmineApiKey, redmineUsername, redminePassword,
                 projectIdentifier, projectDisplayName, githubToken, githubRepo, outputDir, cacheDir,
                 uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites,
-                issueMdFetch, uploadMaxFileSizeKb);
+                issueMdFetch, uploadMaxFileSizeKb, labelColors);
     }
 }
