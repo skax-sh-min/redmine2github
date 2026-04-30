@@ -71,5 +71,5 @@ echo ============================================
 set "LOG=%SCRIPT_DIR%..\migration.log"
 echo. >> "%LOG%"
 echo === [fetch] %DATE% %TIME% === >> "%LOG%"
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" fetch %* 2>&1 | powershell -noprofile -Command "$input | Tee-Object -Append '%LOG%'"
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -jar "%JAR%" fetch %* 2>&1 | powershell -noprofile -Command "[Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$enc=[System.Text.UTF8Encoding]::new($false);$sw=[System.IO.StreamWriter]::new($env:LOG,$true,$enc);try{$input|%%{[Console]::WriteLine($_);$sw.WriteLine($_)}}finally{$sw.Close()}"
 exit /b %errorlevel%
