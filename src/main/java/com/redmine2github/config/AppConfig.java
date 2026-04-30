@@ -23,6 +23,8 @@ public class AppConfig {
     private final String redmineUsername;
     private final String redminePassword;
     private final String redmineProject;
+    /** fetch-all 실행 시 Redmine에서 조회한 프로젝트 표시 이름 (선택, null 가능). */
+    private final String projectName;
     private final String githubToken;
     private final String githubRepo;
     private final String outputDir;
@@ -44,7 +46,7 @@ public class AppConfig {
 
     /** 특정 필드를 직접 주입하는 내부 생성자 (withProject 등에서 사용). */
     private AppConfig(String redmineUrl, String redmineApiKey, String redmineUsername,
-                      String redminePassword, String redmineProject,
+                      String redminePassword, String redmineProject, String projectName,
                       String githubToken, String githubRepo,
                       String outputDir, String cacheDir, String uploadMethod,
                       Map<String, String> userMapping, int requestDelayMs,
@@ -55,6 +57,7 @@ public class AppConfig {
         this.redmineUsername     = redmineUsername;
         this.redminePassword     = redminePassword;
         this.redmineProject      = redmineProject;
+        this.projectName         = projectName;
         this.githubToken         = githubToken;
         this.githubRepo          = githubRepo;
         this.outputDir           = outputDir;
@@ -69,6 +72,7 @@ public class AppConfig {
     }
 
     private AppConfig(Dotenv env, Map<String, String> userMapping) {
+        this.projectName = null;
         String rawUrl = env.get("REDMINE_URL");
         this.redmineUrl      = rawUrl != null ? rawUrl.replaceAll("/+$", "") : rawUrl;
         this.redmineApiKey   = env.get("REDMINE_API_KEY", "");
@@ -154,6 +158,8 @@ public class AppConfig {
     public String getRedmineUsername() { return redmineUsername; }
     public String getRedminePassword() { return redminePassword; }
     public String getRedmineProject()  { return redmineProject; }
+    /** Redmine 프로젝트 표시 이름 (fetch-all 시 설정). null이면 slug를 이름으로 대체 사용. */
+    public String getProjectName() { return projectName != null ? projectName : getProjectSlug(); }
     public String getGithubToken()    { return githubToken; }
     public String getGithubRepo()     { return githubRepo; }
     public String getOutputDir()      { return outputDir; }
@@ -192,8 +198,16 @@ public class AppConfig {
      * fetch-all-projects 에서 프로젝트별로 설정을 교체할 때 사용한다.
      */
     public AppConfig withProject(String projectIdentifier) {
+        return withProject(projectIdentifier, null);
+    }
+
+    /**
+     * 프로젝트 식별자와 표시 이름을 지정한 새 AppConfig를 반환한다.
+     * fetch-all-projects 에서 Redmine 프로젝트명을 보존할 때 사용한다.
+     */
+    public AppConfig withProject(String projectIdentifier, String projectDisplayName) {
         return new AppConfig(redmineUrl, redmineApiKey, redmineUsername, redminePassword,
-                projectIdentifier, githubToken, githubRepo, outputDir, cacheDir,
+                projectIdentifier, projectDisplayName, githubToken, githubRepo, outputDir, cacheDir,
                 uploadMethod, userMapping, requestDelayMs, Collections.emptyList(), urlRewrites,
                 issueMdFetch, uploadMaxFileSizeKb);
     }

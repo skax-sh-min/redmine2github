@@ -1,9 +1,11 @@
 package com.redmine2github.cli;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redmine2github.config.AppConfig;
 import com.redmine2github.state.FailureLog;
 import com.redmine2github.redmine.RedmineClient;
 import com.redmine2github.redmine.model.RedmineProject;
+import com.redmine2github.service.AllProjectsIndexGenerator;
 import com.redmine2github.service.IssueMigrationService;
 import com.redmine2github.service.TimeEntryMigrationService;
 import com.redmine2github.service.WikiMigrationService;
@@ -12,8 +14,12 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Phase 1: Redmine 데이터를 수집하여 로컬 {@code output/}에 저장한다.
@@ -166,7 +172,9 @@ public class FetchCommand implements Runnable {
             log.info("프로젝트 수집 시작: {}", id);
 
             try {
-                runProject(baseConfig.withProject(id), runWiki, runIssues, runTime);
+                AppConfig projectConfig = baseConfig.withProject(id, project.getName());
+                saveProjectMeta(projectConfig, project);
+                runProject(projectConfig, runWiki, runIssues, runTime);
             } catch (Exception e) {
                 log.error("[{}] 수집 중 오류 — 다음 프로젝트로 계속: {}", id, e.getMessage(), e);
                 System.out.printf("  [%d/%d] %s — 오류 발생, 다음 프로젝트로 계속: %s%n",
@@ -177,6 +185,24 @@ public class FetchCommand implements Runnable {
         System.out.println();
         System.out.println("  fetch --all 완료. output/ 디렉터리를 검토한 뒤 upload를 실행하세요.");
         log.info("=== fetch --all 완료 ({} 프로젝트) ===", projects.size());
+
+        // 전체 프로젝트 인덱스 파일 생성
+        AllProjectsIndexGenerator.generate(baseConfig.getOutputDir());
+    }
+
+    /** 프로젝트 메타 정보를 {@code output/{project}/_project.json}에 저장한다. */
+    private void saveProjectMeta(AppConfig config, RedmineProject project) {
+        Path metaFile = Path.of(config.getProjectOutputDir(), "_project.json");
+        try {
+            Files.createDirectories(metaFile.getParent());
+            Map<String, String> meta = new LinkedHashMap<>();
+            meta.put("id",          project.getIdentifier());
+            meta.put("name",        project.getName());
+            meta.put("description", project.getDescription());
+            new ObjectMapper().writeValue(metaFile.toFile(), meta);
+        } catch (IOException e) {
+            log.warn("_project.json 저장 실패 [{}]: {}", config.getProjectSlug(), e.getMessage());
+        }
     }
 
     // ── 공통 헬퍼 ─────────────────────────────────────────────
