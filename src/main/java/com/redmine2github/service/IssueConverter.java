@@ -64,9 +64,6 @@ class IssueConverter {
         Path attachIssueDir = Path.of(config.getProjectOutputDir(), "attachments-issue");
         Map<String, String> attNameMapping = downloadAttachments(issue.getAttachments(), redmine, attachIssueDir);
 
-        String body     = buildIssueBody(issue, userMap, attNameMapping, redmine, attachIssueDir);
-        List<String> labels  = buildLabels(issue);
-
         String authorLogin = issue.getAuthorLogin();
         String author = authorLogin != null
                       ? userMap.getOrDefault(authorLogin, authorLogin)
@@ -74,6 +71,9 @@ class IssueConverter {
         if (authorLogin != null && !userMap.containsKey(authorLogin)) {
             report.addUnmappedUser(authorLogin);
         }
+
+        String body     = buildIssueBody(issue, author, userMap, attNameMapping, redmine, attachIssueDir);
+        List<String> labels  = buildLabels(issue);
 
         String assigneeLogin = issue.getAssigneeLogin();
         String assignee = assigneeLogin != null
@@ -95,13 +95,9 @@ class IssueConverter {
         );
     }
 
-    private String buildIssueBody(RedmineIssue issue, Map<String, String> userMap,
+    private String buildIssueBody(RedmineIssue issue, String author, Map<String, String> userMap,
                                    Map<String, String> attNameMapping, RedmineClient redmine,
                                    Path attachIssueDir) {
-        String author = userMap.getOrDefault(
-                issue.getAssigneeLogin(),
-                issue.getAssigneeLogin() != null ? issue.getAssigneeLogin() : "unknown"
-        );
 
         String md = converter.convert(issue.getDescription());
         md = linkRewriter.rewrite(md, Collections.emptyMap(), config.getProjectSlug(), "");
