@@ -68,5 +68,8 @@ if defined REDMINE_PROJECTS (echo  Projects: %REDMINE_PROJECTS%) else if defined
 if defined OUTPUT_DIR (echo  Output  : %OUTPUT_DIR%) else (echo  Output  : .\output)
 echo ============================================
 
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" fetch %*
+set "LOG=%SCRIPT_DIR%..\migration.log"
+echo. >> "%LOG%"
+echo === [fetch] %DATE% %TIME% === >> "%LOG%"
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" fetch %* 2>&1 | powershell -noprofile -Command "$input | Tee-Object -Append '%LOG%'"
 exit /b %errorlevel%

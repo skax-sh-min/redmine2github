@@ -63,6 +63,9 @@ fi
 : "${GITHUB_TOKEN:?'GITHUB_TOKEN 환경 변수가 설정되지 않았습니다.'}"
 : "${GITHUB_REPO:?'GITHUB_REPO 환경 변수가 설정되지 않았습니다.'}"
 
+# ── 로그 파일 설정 ───────────────────────────────────────────
+LOG="${SCRIPT_DIR}/../migration.log"
+
 # ── 실행 ─────────────────────────────────────────────────────
 echo "============================================"
 echo " Redmine → GitHub 전체 마이그레이션 시작"
@@ -70,4 +73,5 @@ echo " 대상 Redmine: ${REDMINE_URL}/projects/${REDMINE_PROJECT}"
 echo " 대상 GitHub : ${GITHUB_REPO}"
 echo "============================================"
 
-exec java -jar "$JAR" migrate "$@"
+{ echo ""; echo "=== [migrate] $(date '+%Y-%m-%d %H:%M:%S') ==="; } >> "$LOG"
+java -jar "$JAR" migrate "$@" 2>&1 | tee -a "$LOG"

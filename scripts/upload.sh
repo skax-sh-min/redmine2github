@@ -73,6 +73,9 @@ if [ ! -d "$OUTPUT" ]; then
     exit 1
 fi
 
+# ── 로그 파일 설정 ───────────────────────────────────────────
+LOG="${SCRIPT_DIR}/../migration.log"
+
 # ── 실행 ─────────────────────────────────────────────────────
 echo "============================================"
 echo " [Phase 2] 로컬 → GitHub 업로드 시작"
@@ -80,4 +83,5 @@ echo " 대상 GitHub: ${GITHUB_REPO}"
 echo " 업로드 방식: ${GITHUB_UPLOAD_METHOD:-API}"
 echo "============================================"
 
-exec java -jar "$JAR" upload "$@"
+{ echo ""; echo "=== [upload] $(date '+%Y-%m-%d %H:%M:%S') ==="; } >> "$LOG"
+java -jar "$JAR" upload "$@" 2>&1 | tee -a "$LOG"

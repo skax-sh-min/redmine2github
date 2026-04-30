@@ -83,5 +83,8 @@ echo  GitHub: %GITHUB_REPO%
 if defined GITHUB_UPLOAD_METHOD (echo  Method: %GITHUB_UPLOAD_METHOD%) else (echo  Method: API)
 echo ============================================
 
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" upload %*
+set "LOG=%SCRIPT_DIR%..\migration.log"
+echo. >> "%LOG%"
+echo === [upload] %DATE% %TIME% === >> "%LOG%"
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" upload %* 2>&1 | powershell -noprofile -Command "$input | Tee-Object -Append '%LOG%'"
 exit /b %errorlevel%

@@ -74,5 +74,8 @@ echo  Redmine : %REDMINE_URL%/projects/%REDMINE_PROJECT%
 echo  GitHub  : %GITHUB_REPO%
 echo ============================================
 
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" migrate %*
+set "LOG=%SCRIPT_DIR%..\migration.log"
+echo. >> "%LOG%"
+echo === [migrate] %DATE% %TIME% === >> "%LOG%"
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar "%JAR%" migrate %* 2>&1 | powershell -noprofile -Command "$input | Tee-Object -Append '%LOG%'"
 exit /b %errorlevel%

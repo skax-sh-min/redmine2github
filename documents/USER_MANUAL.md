@@ -682,6 +682,17 @@ output/
 | `true` (기본) | GitHub Issues API 등록 생략. `issues/{id}.md` + `issues.md`를 리포지터리 파일로 업로드 |
 | `false` | Labels, Milestones, Issues를 GitHub Issues API로 등록 |
 
+**`--only` 옵션과의 조합 (`REDMINE_ISSUE_MD_FETCH=true` 기준)**
+
+| 명령 | 동작 |
+|------|------|
+| `upload --only issues` | GitHub Issues API **등록 안 함** → `issues/{id}.md` + `issues.md`를 **리포지터리 파일**로 업로드 |
+| `upload --only wiki` | Wiki 파일만 업로드. issues 관련 처리 **없음** |
+| `upload` (옵션 없음) | Wiki + Issues(MD 업로드) + Time Entries 모두 처리 |
+
+> **주의**: `REDMINE_ISSUE_MD_FETCH=true`일 때 `upload --only issues`를 실행해도 GitHub Issues 탭에 이슈가 등록되지 않습니다.  
+> GitHub Issues 탭 등록을 원하면 `REDMINE_ISSUE_MD_FETCH=false`로 변경하세요.
+
 ### Issue JSON 형식 (`output/issues-json/{id}.json`)
 
 ```json
@@ -850,9 +861,22 @@ rm -rf output/      # 로컬 파일도 초기화할 경우
 
 ### 로그 파일
 
+스크립트(`fetch.sh`, `upload.sh`, `migrate.sh` 등)를 실행하면 콘솔 출력과 동시에 프로젝트 루트의 `migration.log`에 자동으로 **append**됩니다. 각 실행 시작 시 타임스탬프 헤더가 기록됩니다.
+
+```
+=== [fetch] 2026-04-30 14:23:01 ===
+14:23:01 [INFO ] WikiMigrationService - [Wiki] 페이지 수집 시작...
+...
+```
+
+JAR를 직접 실행할 경우 로그는 콘솔에만 출력됩니다. 파일로도 저장하려면:
+
 ```bash
-tail -f migration.log
-grep "ERROR\|WARN" migration.log
+# macOS / Linux
+java -jar build/libs/redmine2github.jar fetch 2>&1 | tee -a migration.log
+
+# Windows PowerShell
+java -jar build/libs/redmine2github.jar fetch 2>&1 | Tee-Object -Append migration.log
 ```
 
 ### GitHub Rate Limit
@@ -870,7 +894,28 @@ grep "ERROR\|WARN" migration.log
 | 방식 | 설명 | 적합한 경우 |
 |------|------|-------------|
 | `API` (기본) | Contents API, 파일별 개별 업로드 | 파일 500개 미만 |
-| `JGIT` | git clone → commit → push | 파일 500개 이상, 대용량 첨부파일 |
+| `JGIT` | git clone → staging → commit → push | 파일 500개 이상, 대용량 첨부파일 |
+
+### API 방식 commit 단위
+
+파일 1개 = commit 1개. 파일 100개면 commit 100개가 생성됩니다.
+
+### JGIT 방식 commit 단위
+
+업로드 대상 **종류별로 묶어서 1 commit + 1 push**로 처리합니다.
+
+| 업로드 대상 | commit 단위 | commit 메시지 예 |
+|---|---|---|
+| Wiki `.md` 파일 전체 | **1 commit** | `migrate: wiki pages (42 files)` |
+| 첨부파일 (`attachments/` + `attachments-ext/`) | **1 commit** | `migrate: attachments (15 files)` |
+| Issue `.md` 파일 전체 | **1 commit** | `migrate: issue md files (120 files)` |
+| 단일 파일 (`issues.md` 등) | 파일당 1 commit | `migrate: project/issues.md` |
+
+프로젝트 1개 업로드 시 최대 3~4개의 commit이 생성됩니다.
+
+> **`--resume` 재개 시**: 이미 완료된 파일은 staging에서 제외되므로 남은 파일만 묶여서 커밋됩니다.
+
+> **주의**: JGIT 방식은 `tmp/repo/` 에 원격 저장소를 clone해서 작업합니다. 첫 실행 시 clone 시간이 필요하며, 저장소 크기에 따라 디스크 공간을 사용합니다.
 
 자세한 비교: [github.upload.md](github.upload.md)
 

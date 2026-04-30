@@ -1,0 +1,86 @@
+Redmine2Github — Third-Party Notices
+=====================================
+
+This product includes software developed by the following third parties.
+Each component is governed by its own license as listed below.
+
+The full text of Apache License 2.0 is available at:
+  https://www.apache.org/licenses/LICENSE-2.0
+
+The full text of MIT License is available at:
+  https://opensource.org/licenses/MIT
+
+The full text of Eclipse Distribution License 1.0 (EDL) is available at:
+  https://www.eclipse.org/org/documents/edl-v10.php
+
+-------------------------------------------------------------------------------
+
+1. picocli 4.7.6
+   Copyright 2017 Remko Popma
+   License: Apache License 2.0
+   https://picocli.info/
+   https://github.com/remkop/picocli
+
+2. OkHttp 4.12.0
+   Copyright 2019 Square, Inc.
+   License: Apache License 2.0
+   https://square.github.io/okhttp/
+
+3. Jackson 2.17.2
+   Components:
+     - jackson-databind
+     - jackson-datatype-jsr310
+     - jackson-dataformat-yaml
+   Copyright 2007- Tatu Saloranta and FasterXML, LLC
+   License: Apache License 2.0
+   https://github.com/FasterXML/jackson
+
+4. dotenv-java 3.0.0
+   Copyright 2018 Carmine DiMascio
+   License: MIT License
+   https://github.com/cdimascio/dotenv-java
+
+5. GitHub API for Java (github-api) 1.321
+   Copyright Kohsuke Kawaguchi and contributors
+   License: MIT License
+   https://github-api.kohsuke.org/
+   https://github.com/hub4j/github-api
+
+6. JGit 6.9.0
+   Copyright 2005-2024 the JGit contributors
+   License: Eclipse Distribution License 1.0 (EDL 1.0 / BSD-style)
+   https://www.eclipse.org/jgit/
+
+7. Apache Commons CSV 1.11.0
+   Copyright 2005-2024 The Apache Software Foundation
+   License: Apache License 2.0
+   https://commons.apache.org/proper/commons-csv/
+
+8. SLF4J API 2.0.13
+   Copyright 2004-2024 QOS.ch Sarl
+   License: MIT License
+   https://www.slf4j.org/
+
+9. slf4j-simple 2.0.13
+   Copyright 2004-2024 QOS.ch Sarl
+   License: MIT License
+   https://www.slf4j.org/
+
+-------------------------------------------------------------------------------
+
+[TEST ONLY — 배포 JAR에 포함되지 않음]
+
+  - JUnit Jupiter 5.11.0 — Eclipse Public License 2.0
+    https://junit.org/junit5/
+  - Mockito 5.12.0 — MIT License
+    https://site.mockito.org/
+  - MockWebServer 4.12.0 (OkHttp) — Apache License 2.0
+    https://github.com/square/okhttp/tree/master/mockwebserver
+
+-------------------------------------------------------------------------------
+
+[MIT 라이선스 호환성 메모]
+
+이 소프트웨어의 주 라이선스는 MIT입니다.
+번들된 라이브러리 모두 MIT 또는 Apache 2.0 / EDL 1.0(BSD-style)으로
+MIT와 완전히 호환됩니다. LGPL 의존성은 없습니다.

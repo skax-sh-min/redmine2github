@@ -66,6 +66,9 @@ fi
 : "${REDMINE_URL:?'REDMINE_URL 환경 변수가 설정되지 않았습니다.'}"
 # REDMINE_PROJECT: --all 또는 --project 사용 시 불필요 (CLI에서 검증)
 
+# ── 로그 파일 설정 ───────────────────────────────────────────
+LOG="${SCRIPT_DIR}/../migration.log"
+
 # ── 실행 ─────────────────────────────────────────────────────
 echo "============================================"
 echo " [Phase 1] Redmine -> 로컬 수집 시작"
@@ -78,4 +81,5 @@ fi
 echo " 출력 디렉터리: ${OUTPUT_DIR:-./output}"
 echo "============================================"
 
-exec java -jar "$JAR" fetch "$@"
+{ echo ""; echo "=== [fetch] $(date '+%Y-%m-%d %H:%M:%S') ==="; } >> "$LOG"
+java -jar "$JAR" fetch "$@" 2>&1 | tee -a "$LOG"
