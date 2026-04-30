@@ -380,14 +380,24 @@ public class RedmineClient {
      * @return 저장된 파일 경로
      */
     public Path downloadAttachment(RedmineAttachment att, Path destDir) throws IOException {
-        Path dest = destDir.resolve(att.getFilename());
+        String safeName = sanitizeAttachmentFilename(att.getFilename());
+        Path normalizedDir = destDir.normalize();
+
+        Path dest = normalizedDir.resolve(safeName).normalize();
+        if (!dest.startsWith(normalizedDir)) {
+            throw new IOException("경로 탐색 시도 차단: " + att.getFilename());
+        }
+
         if (Files.exists(dest)) {
             if (isSameFile(dest, att)) {
                 log.debug("첨부파일 스킵 (동일 파일): {}", dest);
                 return dest;
             }
             // 크기 또는 checksum이 다른 동일명 파일: id 접두사로 분리
-            dest = destDir.resolve(att.getId() + "_" + att.getFilename());
+            dest = normalizedDir.resolve(att.getId() + "_" + safeName).normalize();
+            if (!dest.startsWith(normalizedDir)) {
+                throw new IOException("경로 탐색 시도 차단 (id 접두사): " + att.getFilename());
+            }
             if (Files.exists(dest)) {
                 log.debug("첨부파일 스킵 (이미 존재, id접두사): {}", dest);
                 return dest;
@@ -436,6 +446,20 @@ public class RedmineClient {
             log.warn("파일 비교 실패 [{}]: {}", existing, e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * 첨부파일명에서 경로 성분을 제거하고 파일시스템 금지 문자를 '_'로 치환한다.
+     * Path Traversal(../../../etc/passwd 등) 방어용.
+     */
+    private static String sanitizeAttachmentFilename(String filename) {
+        if (filename == null || filename.isBlank()) return "_";
+        // 경로 구분자 포함 시 파일명만 추출 (e.g. "../../evil" → "evil")
+        String name = Path.of(filename).getFileName().toString();
+        // Windows/Linux 금지 문자 치환
+        name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (name.isBlank()) return "_";
+        return name;
     }
 
     /** 파일의 MD5 hex digest를 계산한다. */
