@@ -376,7 +376,6 @@ public class IssueMigrationService {
                 progress.itemDone("#" + local.getRedmineId() + " " + local.getSubject());
             } catch (Exception e) {
                 log.error("Issue 업로드 실패 [#{}]: {}", local.getRedmineId(), e.getMessage(), e);
-                state.markIssueFailed(local.getRedmineId());
                 stateMgr.save();
                 progress.itemFailed("#" + local.getRedmineId(), e.getMessage());
                 report.addFailure("issue-upload", "#" + local.getRedmineId(), e.getMessage());

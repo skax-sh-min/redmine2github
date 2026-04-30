@@ -1,5 +1,6 @@
 package com.redmine2github.state;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -13,6 +14,8 @@ import java.util.Set;
  *   <li><b>upload 단계</b>: 로컬 파일 → GitHub (completed* / *Done 필드)</li>
  * </ul>
  */
+// 기존 migration-state.json 파일에 failedIssueIds 등 제거된 필드가 있어도 무시한다.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MigrationState {
 
     // ── fetch 단계 ────────────────────────────────────────────────────────────
@@ -28,7 +31,6 @@ public class MigrationState {
     /** upload 단계: 업로드 완료된 wiki 파일 경로 (예: wiki/GettingStarted.md) */
     private Set<String>  completedWikiPages   = new HashSet<>();
     private Set<Integer> completedIssueIds    = new HashSet<>();
-    private Set<Integer> failedIssueIds       = new HashSet<>();
     /** upload 단계: 업로드 완료된 issue MD 파일 경로 (예: issues/123.md) */
     private Set<String>  completedIssueMdPaths    = new HashSet<>();
     /** upload 단계: 업로드 완료된 첨부파일 경로 (예: project/attachments/image.png) */
@@ -61,9 +63,7 @@ public class MigrationState {
     public void markWikiPageDone(String repoPath)    { completedWikiPages.add(repoPath); }
 
     public boolean isIssueDone(int id)               { return completedIssueIds.contains(id); }
-    public void markIssueDone(int id)                { completedIssueIds.add(id); failedIssueIds.remove(id); }
-    public void markIssueFailed(int id)              { failedIssueIds.add(id); }
-    public Set<Integer> getFailedIssueIds()          { return failedIssueIds; }
+    public void markIssueDone(int id)                { completedIssueIds.add(id); }
 
     public boolean isIssueMdDone(String path)        { return completedIssueMdPaths.contains(path); }
     public void markIssueMdDone(String path)         { completedIssueMdPaths.add(path); }
@@ -105,8 +105,6 @@ public class MigrationState {
 
     public Set<Integer> getCompletedIssueIds()             { return completedIssueIds; }
     public void setCompletedIssueIds(Set<Integer> s)       { completedIssueIds = s; }
-
-    public void setFailedIssueIds(Set<Integer> s)          { failedIssueIds = s; }
 
     public Set<String>  getCompletedIssueMdPaths()              { return completedIssueMdPaths; }
     public void setCompletedIssueMdPaths(Set<String> s)         { completedIssueMdPaths = s; }
