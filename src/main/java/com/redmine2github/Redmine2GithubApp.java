@@ -1,6 +1,7 @@
 package com.redmine2github;
 
 import com.redmine2github.cli.FetchCommand;
+import com.redmine2github.cli.GenerateIndexCommand;
 import com.redmine2github.cli.GenerateMappingCommand;
 import com.redmine2github.cli.MigrateAllCommand;
 import com.redmine2github.cli.UploadCommand;
@@ -18,6 +19,7 @@ import java.nio.charset.StandardCharsets;
         UploadCommand.class,
         MigrateAllCommand.class,
         GenerateMappingCommand.class,
+        GenerateIndexCommand.class,
         CommandLine.HelpCommand.class
     },
     mixinStandardHelpOptions = true,
@@ -42,6 +44,7 @@ import java.nio.charset.StandardCharsets;
         "",
         "기타:",
         "  redmine2github generate-mapping   # 사용자 매핑 초안 생성",
+        "  redmine2github generate-index     # 전체 프로젝트 인덱스 파일 생성/갱신",
         "",
         "서브커맨드 상세 도움말: redmine2github <command> --help"
     }

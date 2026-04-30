@@ -426,7 +426,10 @@ scripts\fetch.bat --all --skip foo,bar
 
 ```
 output/
+├── all_projects_wiki.md           ← 전체 프로젝트 Wiki 인덱스 (자동 생성)
+├── all_projects_issue.md          ← 전체 프로젝트 Issue 인덱스 (자동 생성)
 ├── project-a/
+│   ├── _project.json              ← 프로젝트 메타정보 (id, name, description)
 │   ├── wiki/
 │   ├── attachments/
 │   ├── attachments-issue/
@@ -558,6 +561,26 @@ java -jar redmine2github.jar generate-mapping [--output <경로>]
 
 **필수 환경 변수**: `REDMINE_URL`, `REDMINE_API_KEY` (또는 `REDMINE_USERNAME`+`REDMINE_PASSWORD`)
 
+### `generate-index` — 전체 프로젝트 인덱스 파일 생성/갱신
+
+```
+java -jar redmine2github.jar generate-index [--output-dir <경로>]
+```
+
+| 옵션 | 설명 |
+|------|------|
+| `--output-dir <경로>` | 스캔할 output 디렉터리 경로 (기본: `OUTPUT_DIR` 환경 변수 또는 `./output`) |
+| `-h`, `--help` | 도움말 |
+
+`output/` 디렉터리의 각 프로젝트 폴더를 스캔하여 두 인덱스 파일을 생성/갱신합니다.  
+Redmine 연결 없이 실행 가능합니다.
+
+생성 파일:
+- `output/all_projects_wiki.md` — Wiki 페이지 수 기준 정렬. 프로젝트명 옆에 Wiki 페이지 수 표시
+- `output/all_projects_issue.md` — Issue 수 기준 정렬. 프로젝트명 옆에 Issue 수 표시
+
+> `fetch --all` 완료 시 자동으로 실행됩니다. 개별 프로젝트를 재수집한 뒤에는 이 커맨드로 인덱스를 수동 갱신할 수 있습니다.
+
 ### 전형적인 실행 시나리오
 
 **시나리오 A: 단일 프로젝트**
@@ -584,10 +607,15 @@ java -jar build/libs/redmine2github.jar generate-mapping
 
 ```bash
 # 1. 모든 프로젝트 수집 (REDMINE_PROJECT 불필요)
+#    완료 시 output/all_projects_wiki.md, output/all_projects_issue.md 자동 생성
 ./scripts/fetch.sh --all          # macOS / Linux
 scripts\fetch.bat --all           # Windows
 
 # 2. output/{project-id}/ 디렉터리 검토
+
+# 2-a. 개별 프로젝트 재수집 후 인덱스 갱신
+./scripts/fetch.sh --project my-project-id
+java -jar build/libs/redmine2github.jar generate-index
 
 # 3. 전체 프로젝트 일괄 업로드
 ./scripts/upload.sh --all         # macOS / Linux
@@ -605,7 +633,10 @@ scripts\upload.bat --all          # Windows
 
 ```
 output/
+├── all_projects_wiki.md           # 전체 프로젝트 Wiki 인덱스 (fetch --all 또는 generate-index 생성)
+├── all_projects_issue.md          # 전체 프로젝트 Issue 인덱스 (fetch --all 또는 generate-index 생성)
 ├── {project}/                     # 프로젝트 식별자 폴더
+│   ├── _project.json              # 프로젝트 메타정보 (id, name, description) — fetch --all 시 생성
 │   ├── wiki/                      # Wiki .md 파일 (Textile → GFM)
 │   │   ├── GettingStarted.md
 │   │   └── ParentPage/            # 하위 페이지는 부모 이름 폴더 아래

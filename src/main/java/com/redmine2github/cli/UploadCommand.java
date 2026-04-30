@@ -3,6 +3,8 @@ package com.redmine2github.cli;
 import com.redmine2github.cli.MigrationReport;
 import com.redmine2github.state.FailureLog;
 import com.redmine2github.config.AppConfig;
+import com.redmine2github.github.GitHubFileUploader;
+import com.redmine2github.github.GitHubUploader;
 import com.redmine2github.service.IssueMigrationService;
 import com.redmine2github.service.TimeEntryMigrationService;
 import com.redmine2github.service.WikiMigrationService;
@@ -165,5 +167,54 @@ public class UploadCommand implements Runnable {
         System.out.println();
         System.out.println("  upload --all 완료.");
         log.info("=== upload --all 완료 ({} 프로젝트) ===", projectDirs.size());
+
+        // 전체 프로젝트 인덱스 파일 업로드
+        uploadProjectIndexFiles(baseConfig, runWiki, runIssues, outputRoot);
+    }
+
+    /**
+     * {@code output/all_projects_wiki.md} 와 {@code output/all_projects_issue.md}를
+     * GitHub Repository 루트에 업로드한다.
+     *
+     * <p>wiki 업로드 시 {@code all_projects_wiki.md},
+     * issue 업로드 시 {@code all_projects_issue.md}를 각각 업로드한다.</p>
+     */
+    private void uploadProjectIndexFiles(AppConfig config, boolean runWiki, boolean runIssues, Path outputRoot) {
+        GitHubUploader ghUploader = new GitHubUploader(config);
+        GitHubFileUploader fileUploader = new GitHubFileUploader(config, ghUploader);
+
+        if (runWiki) {
+            Path wikiIndex = outputRoot.resolve("all_projects_wiki.md");
+            if (Files.exists(wikiIndex)) {
+                try {
+                    fileUploader.uploadFile(wikiIndex, "all_projects_wiki.md",
+                            "migrate: all_projects_wiki.md");
+                    log.info("all_projects_wiki.md 업로드 완료");
+                    System.out.println("  → all_projects_wiki.md 업로드 완료");
+                } catch (Exception e) {
+                    log.error("all_projects_wiki.md 업로드 실패: {}", e.getMessage(), e);
+                    System.err.println("  [WARN] all_projects_wiki.md 업로드 실패: " + e.getMessage());
+                }
+            } else {
+                log.warn("all_projects_wiki.md 파일이 없습니다: {}", wikiIndex);
+            }
+        }
+
+        if (runIssues) {
+            Path issueIndex = outputRoot.resolve("all_projects_issue.md");
+            if (Files.exists(issueIndex)) {
+                try {
+                    fileUploader.uploadFile(issueIndex, "all_projects_issue.md",
+                            "migrate: all_projects_issue.md");
+                    log.info("all_projects_issue.md 업로드 완료");
+                    System.out.println("  → all_projects_issue.md 업로드 완료");
+                } catch (Exception e) {
+                    log.error("all_projects_issue.md 업로드 실패: {}", e.getMessage(), e);
+                    System.err.println("  [WARN] all_projects_issue.md 업로드 실패: " + e.getMessage());
+                }
+            } else {
+                log.warn("all_projects_issue.md 파일이 없습니다: {}", issueIndex);
+            }
+        }
     }
 }

@@ -179,7 +179,7 @@ public class AllProjectsIndexGenerator {
         List<ProjectStats> sorted = stats.stream()
                 .sorted(Comparator
                         .comparingInt(ProjectStats::wikiCount).reversed()
-                        .thenComparingInt(ProjectStats::issueCount).reversed()
+                        .thenComparing(Comparator.comparingInt(ProjectStats::issueCount).reversed())
                         .thenComparing(ProjectStats::name))
                 .toList();
 
@@ -194,11 +194,12 @@ public class AllProjectsIndexGenerator {
         sb.append("|---|---:|---:|---|\n");
 
         for (ProjectStats s : sorted) {
+            String displayName = s.name() + " (" + s.wikiCount() + "개)";
             String wikiLink;
             if (s.wikiMainPage() != null) {
-                wikiLink = "[" + s.name() + "](" + s.slug() + "/" + s.wikiMainPage() + ")";
+                wikiLink = "[" + displayName + "](" + s.slug() + "/" + s.wikiMainPage() + ")";
             } else {
-                wikiLink = s.name();
+                wikiLink = displayName;
             }
             String descCell = s.description().length() > 60
                     ? s.description().substring(0, 57) + "..."
@@ -220,7 +221,7 @@ public class AllProjectsIndexGenerator {
         List<ProjectStats> sorted = stats.stream()
                 .sorted(Comparator
                         .comparingInt(ProjectStats::issueCount).reversed()
-                        .thenComparingInt(ProjectStats::wikiCount).reversed()
+                        .thenComparing(Comparator.comparingInt(ProjectStats::wikiCount).reversed())
                         .thenComparing(ProjectStats::name))
                 .toList();
 
@@ -235,11 +236,12 @@ public class AllProjectsIndexGenerator {
         sb.append("|---|---:|---:|---|\n");
 
         for (ProjectStats s : sorted) {
+            String displayName = s.name() + " (" + s.issueCount() + "개)";
             String issueLink;
             if (s.hasIssueIndex()) {
-                issueLink = "[" + s.name() + "](" + s.slug() + "/issues.md)";
+                issueLink = "[" + displayName + "](" + s.slug() + "/issues.md)";
             } else {
-                issueLink = s.name();
+                issueLink = displayName;
             }
             String descCell = s.description().length() > 60
                     ? s.description().substring(0, 57) + "..."
