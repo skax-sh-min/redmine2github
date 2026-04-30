@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +50,11 @@ public class RedmineClient {
     }
 
     public RedmineClient(AppConfig config, CacheManager cache) {
-        this.http    = new OkHttpClient();
+        this.http    = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
         this.mapper  = new ObjectMapper();
         this.baseUrl = config.getRedmineUrl();
         this.project = config.getRedmineProject();
