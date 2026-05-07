@@ -63,6 +63,7 @@ public class WikiMigrationService {
     private final AppConfig config;
     private final MigrationReport report;
     private final FailureLog failureLog;
+    private final boolean debug;
     private final TextileConverter converter            = new TextileConverter();
     private final LinkRewriter linkRewriter             = new LinkRewriter();
     private final AttachmentPathRewriter attachRewriter = new AttachmentPathRewriter();
@@ -70,17 +71,22 @@ public class WikiMigrationService {
 
     public WikiMigrationService(AppConfig config) {
         this(config, new MigrationReport(config.getProjectSlug()),
-             new FailureLog(Path.of(config.getProjectOutputDir())));
+             new FailureLog(Path.of(config.getProjectOutputDir())), false);
     }
 
     public WikiMigrationService(AppConfig config, MigrationReport report) {
-        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())));
+        this(config, report, new FailureLog(Path.of(config.getProjectOutputDir())), false);
     }
 
     public WikiMigrationService(AppConfig config, MigrationReport report, FailureLog failureLog) {
+        this(config, report, failureLog, false);
+    }
+
+    public WikiMigrationService(AppConfig config, MigrationReport report, FailureLog failureLog, boolean debug) {
         this.config = config;
         this.report = report;
         this.failureLog = failureLog;
+        this.debug = debug;
         this.redmineUrlRewriter = new RedmineUrlRewriter(config.getRedmineUrl(), config.getUrlRewrites());
     }
 
@@ -213,6 +219,13 @@ public class WikiMigrationService {
                         att.getFilename(), att.getContentUrl(), e.getMessage(), e);
                 failureLog.append("attachment-download", att.getFilename(), "fetch", e.getMessage());
             }
+        }
+
+        // ② (debug) 변환 전 원본 Textile 저장
+        if (debug) {
+            Path rawDir = Path.of("tmp", "wiki-raw", config.getProjectSlug());
+            Files.createDirectories(rawDir);
+            Files.writeString(rawDir.resolve(slugify(page.getTitle()) + ".textile"), page.getText());
         }
 
         // ② Markdown 변환 및 링크 재작성

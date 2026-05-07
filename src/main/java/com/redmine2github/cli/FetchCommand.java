@@ -81,6 +81,10 @@ public class FetchCommand implements Runnable {
             description = "--all 사용 시 제외할 프로젝트 식별자 (쉼표 구분, 예: --skip foo,bar)")
     private List<String> skip;
 
+    @Option(names = "--debug",
+            description = "변환 전 Redmine 원본 Wiki 텍스트를 tmp/wiki-raw/{project}/ 에 저장한다")
+    private boolean debug;
+
     @Override
     public void run() {
         AppConfig baseConfig = AppConfig.load();
@@ -210,7 +214,7 @@ public class FetchCommand implements Runnable {
     private void runProject(AppConfig config, boolean runWiki, boolean runIssues, boolean runTime) {
         MigrationReport report = new MigrationReport(config.getProjectSlug());
         FailureLog failureLog  = new FailureLog(Path.of(config.getProjectOutputDir()));
-        if (runWiki)   new WikiMigrationService(config, report, failureLog).fetch(resume, retryFailed);
+        if (runWiki)   new WikiMigrationService(config, report, failureLog, debug).fetch(resume, retryFailed);
         if (runIssues) new IssueMigrationService(config, report, failureLog).fetch(resume, retryFailed);
         if (runTime)   new TimeEntryMigrationService(config, report, failureLog).fetch(resume, retryFailed);
         report.writeToFile(Path.of(config.getProjectOutputDir()));
