@@ -171,7 +171,20 @@ public class TextileConverter {
             boolean isGfmSep = !stripped.trim().isEmpty() && isGfmSeparatorRow(stripped);
 
             if (isTableRow) {
-                tableBuffer.add(stripped);
+                // 표 행이 |로 끝나지 않으면 셀 내용이 다음 줄로 이어지는 경우 — 줄을 병합
+                String tableRow = stripped;
+                while (!tableRow.trim().endsWith("|") && i + 1 < lines.length) {
+                    String nextRaw      = lines[i + 1];
+                    if (nextRaw.trim().isEmpty()) break;
+                    String nextStripped = stripHeadingPrefixIfTable(nextRaw);
+                    boolean nextIsTable = !nextStripped.trim().isEmpty()
+                            && nextStripped.trim().startsWith("|")
+                            && !isGfmSeparatorRow(nextStripped);
+                    if (nextIsTable || isSectionDivider(nextRaw)) break;
+                    tableRow = tableRow + "\n" + nextRaw;
+                    i++;
+                }
+                tableBuffer.add(tableRow);
                 i++;
             } else if (isGfmSep && !tableBuffer.isEmpty()) {
                 // 이미 존재하는 GFM 구분선은 건너뜀 — renderGfmTable이 재생성
@@ -351,6 +364,8 @@ public class TextileConverter {
      */
     private String cleanTableCell(String cell) {
         String s = cell.trim();
+        // 셀 내 줄바꿈(다중 행 병합 후 남은 \n) → <br>
+        s = s.replace("\n", "<br>");
         // colspan/rowspan: \2. /3. 등
         s = s.replaceFirst("^[/\\\\]\\d+\\.\\s*", "");
         // 헤더 마커: _.
