@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
         CommandLine.HelpCommand.class
     },
     mixinStandardHelpOptions = true,
-    version = "1.2.0",
+    versionProvider = ManifestVersionProvider.class,
     footer = {
         "",
         "단일 프로젝트 (2단계, 권장):",

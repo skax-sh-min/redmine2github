@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.redmine2github'
-version = '0.1.0'
+version = '0.5.0'
 
 java {
     toolchain {
@@ -58,7 +58,8 @@ compileJava.options.compilerArgs += ["-Aproject=${project.group}/${project.name}
 
 jar {
     manifest {
-        attributes 'Main-Class': 'com.redmine2github.Redmine2GithubApp'
+        attributes 'Main-Class': 'com.redmine2github.Redmine2GithubApp',
+                   'Implementation-Version': project.version
     }
 }
 
